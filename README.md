@@ -24,25 +24,42 @@ cd RAC
 
 ### 2. Create and activate a virtual environment
 
-On macOS/Linux: 
+On macOS/Linux:
 ```shell
 python -m venv venv
 source ./venv/bin/activate
 ```
 > Note: you may have to use `python3` or `python3.XX` depending on the version of python that you have installed
 
-On Windows: 
-```shell
-venv\Scripts\activate
+On Windows PowerShell:
+```powershell
+py -m venv venv
+.\venv\Scripts\Activate.ps1
 ```
+
+If PowerShell blocks activation scripts, enable scripts for the current terminal session and activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\venv\Scripts\Activate.ps1
+```
+
+On Windows Command Prompt:
+```bat
+py -m venv venv
+venv\Scripts\activate.bat
+```
+
+> Note: if the `py` launcher is not available on Windows, use `python` in its place.
 
 ### 3. Install dependencies and the package
 
 ```shell
-pip install flit
-flit install --symlink
+python -m pip install --upgrade pip
+python -m pip install flit
+python -m flit install --symlink
 ```
-> Note: you may have to use `pip3` or `pip3.XX` depending on the version of pip that you have installed
+> Note: `python -m pip` and `python -m flit` use the Python interpreter from your active virtual environment.
 
 
 This will install RAC in editable mode and register the `rac` command.
@@ -64,8 +81,18 @@ DB_NAME=your_database
 > A different file name can be used, but the file must be specified at run time. 
 
 An `example.env` is provided for user reference and can be copied+edited to create the needed config file:
-```
+```shell
 cp example.env .env
+```
+
+On Windows PowerShell:
+```powershell
+Copy-Item example.env .env
+```
+
+On Windows Command Prompt:
+```bat
+copy example.env .env
 ```
 
 ---
