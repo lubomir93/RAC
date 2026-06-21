@@ -17,8 +17,8 @@ RAC is a tool to parse and execute relational algebra queries by translating the
 ### 1. Clone the repository
 
 ```shell
-git clone https://github.com/sydlyn/RelationalAlgebraCompiler.git
-cd RelationalAlgebraCompiler
+git clone https://github.com/lubomir93/RAC.git
+cd RAC
 ```
 
 
