@@ -1,13 +1,13 @@
 ~~~ RAC Quick Reference ~~~
 
-- List: list the availble tables and virtual views
+- List: list available database relations and RAC virtual views by category
   => list
 
 - Drop: remove a saved virtual view from the usable list of relations
   => \drop table
 
-- Projection: select specific columns
-  => \pi {col1[, col2, ...] | *} table
+- Projection: select specific columns or date parts with month()/year()
+  => \pi {col1[, col2, ...] | month(date_col) | *} table
 
 - Selection: filter rows
   => \sigma {condition} table
@@ -17,6 +17,9 @@
 
 - Sort: sort the rows on specific columns
   => \sort {col asc/desc, ...} table
+
+- Limit: return the first n rows
+  => \limit {n} table
 
 - Remove Duplicates: remove duplicate rows
   => \delta table

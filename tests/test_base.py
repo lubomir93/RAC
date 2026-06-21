@@ -18,9 +18,14 @@ class BaseTest(unittest.TestCase):
 
         # Prepare testTable
         cur.execute("DROP TABLE IF EXISTS testTable;")
-        cur.execute("CREATE TABLE testTable (a INT, b INT);")
-        cur.executemany("INSERT INTO testTable (a, b) VALUES (%s, %s);",
-                        [(0,1,), (1,2,), (2,2,), (4,3,)])
+        cur.execute("CREATE TABLE testTable (a INT, b INT, tdate DATE);")
+        cur.executemany("INSERT INTO testTable (a, b, tdate) VALUES (%s, %s, %s);",
+                        [
+                            (0, 1, "2024-01-15"),
+                            (1, 2, "2024-02-20"),
+                            (2, 2, "2025-02-28"),
+                            (4, 3, "2025-12-01"),
+                        ])
 
         # Prepare testTabR table
         cur.execute("DROP TABLE IF EXISTS testTabR;")

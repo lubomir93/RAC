@@ -97,6 +97,14 @@ class RATranslator(Transformer):
             "sort_attributes": sort_attributes,
         })
 
+    def limit(self, items):
+        count, table = items
+        return self.add_alias({
+            "operation": "limit",
+            "table": table,
+            "count": count,
+        })
+
     def rename(self, items):
         cname, table = items
         return {
@@ -214,9 +222,14 @@ class RATranslator(Transformer):
 
     def attr(self, items):
         if isinstance(items[0], dict):
+            expr = items[0]
+            if len(items) == 1:
+                return expr
+            if expr.get("type") == "date_part":
+                return expr | {"alias": str(items[1])}
             return {
                 'alias': str(items[1]),
-                'cond': items[0]
+                'cond': expr
             }
 
         return items
@@ -241,6 +254,17 @@ class RATranslator(Transformer):
             "left": left, 
             "op": op, 
             "right": right
+        }
+
+    def date_part_func(self, items):
+        func = items[0]
+        attr = items[1:]
+        if len(attr) == 1:
+            attr = attr[0]
+        return {
+            "type": "date_part",
+            "func": func,
+            "attr": attr
         }
 
     def comp_cond(self, items):
@@ -306,6 +330,9 @@ class RATranslator(Transformer):
 
     def COUNT_OP(self, token):
         return token.value
+
+    def DATE_PART_FUNC(self, token):
+        return token.value.lower()
 
     def AND(self, _):
         return "AND"

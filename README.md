@@ -2,13 +2,13 @@
 
 ### Overview
 
-RAC is a tool to parse and execute relational algebra queries by translating them into SQL and running against a MySQL database.
+RAC is a tool to parse and execute relational algebra queries by translating them into SQL and running against a MySQL database by default. PostgreSQL is also supported through the database config file.
 
 
 ### Requirements
 
 - Python 3.8 or higher
-- MySQL database accessible with proper credentials
+- MySQL or PostgreSQL database accessible with proper credentials
 
 
 
@@ -49,11 +49,12 @@ This will install RAC in editable mode and register the `rac` command.
 
 ### 4. Configure your database connection
 
-Create a config file in the project root with your MySQL credentials:
+Create a config file in the project root with your database credentials:
 
 ```shell
+DB=MySQL                 # optional, defaults to MySQL; use DB=PostgreSQL for PostgreSQL
 DB_HOST=your_host  
-DB_PORT=your_port           # optional, defaults to 3306
+DB_PORT=your_port        # optional, defaults to 3306 for MySQL or 5432 for PostgreSQL
 DB_USER=your_user  
 DB_PASSWORD=your_password  
 DB_NAME=your_database  
@@ -107,7 +108,7 @@ RAC/
 │   ├── __main__.py
 │   ├── __init__.py  
 │   ├── cli.py          # Command line interface entry point  
-│   ├── mysql.py        # MySQL connection code  
+│   ├── mysql.py        # SQL database connection code
 │   ├── parser.py       # Query parsing logic  
 │   ├── translator.py   # Query translation to an intermediate representation  
 │   ├── executor.py     # Query execution  
@@ -116,8 +117,8 @@ RAC/
 │   └── grammar.lark    # Query grammar definition  
 ├── tests/              # Test suite  
 │   └── ...             
-├── .env                # Created by User MySQL credentials (gitignored)
-├── example.env         # Example Config File for MySQL credentials
+├── .env                # Created by User database credentials (gitignored)
+├── example.env         # Example Config File for database credentials
 ├── pyproject.toml      # Build configuration using flit  
 ├── README.md           # This file  
 ├── docs/               # User guides for query syntax and usage
@@ -128,6 +129,5 @@ RAC/
 
 ### Final Notes
 
-- Make sure your MySQL server is up and the `.env` file is correctly set before running.
+- Make sure your database server is up and the `.env` file is correctly set before running.
 - `flit install --symlink` ensures that code changes are immediately available without reinstalling.
-

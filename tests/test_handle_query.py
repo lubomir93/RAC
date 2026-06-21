@@ -35,6 +35,40 @@ class TestHandleQuery(BaseTest):
         df = self._run_and_check("(/sigma{True} (testTabR))", ["age", "b", "c", "d", "name"])
         self.assertEqual(len(df), 16)
 
+    def test_projection_date_part_functions(self):
+        df = self._run_and_check(
+            "/pi_{month(tdate), year(tdate) -> txn_year} testTable",
+            ["month_tdate", "txn_year"]
+        )
+
+        expected = pd.DataFrame({
+            "month_tdate": [1, 2, 2, 12],
+            "txn_year": [2024, 2024, 2025, 2025],
+        })
+        pd.testing.assert_frame_equal(df, expected, check_dtype=False, check_index_type=False)
+
+    def test_list_separates_tables_from_rho_views(self):
+        cli.saved_results.clear()
+        try:
+            query_result = cli.handle_query("(/pi {b} testTable)")
+            self.assertIsNotNone(query_result)
+            self.assertNotIn(query_result.name, cli.saved_results)
+
+            cli.handle_query("(/rho {ProjectedB} (/pi {b} testTable))")
+            listing = cli.handle_query("list")
+
+            self.assertIsInstance(listing, dict)
+            self.assertIn("tables", listing)
+            self.assertIn("rac_virtual_views", listing)
+            self.assertIn("testtable", [str(table).lower() for table in listing["tables"]])
+            self.assertIn("ProjectedB", [str(view) for view in listing["rac_virtual_views"]])
+            self.assertFalse(
+                any(str(view).startswith("_rac_q") for view in listing["rac_virtual_views"])
+            )
+        finally:
+            cli.saved_results.clear()
+
+
     def test_sigma_false(self):
         df = self._run_and_check("(/sigma{2=4} (testTabR))", ["age", "b", "c", "d", "name"])
         self.assertEqual(len(df), 0)

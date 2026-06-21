@@ -1,6 +1,6 @@
 pandas>=2.0
 lark-parser>=0.12
 mysql-connector-python>=8.0
+psycopg2-binary>=2.9
 rich>=13.0
 python-dotenv>=1.0
-

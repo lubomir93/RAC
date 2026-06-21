@@ -2,7 +2,7 @@
 '''Execute the given translated query and produce a result DF.'''
 
 import pandas as pd
-from .mysql import run_query
+from .mysql import format_identifier, list_relations_query, run_query, table_exists_query
 from .utils import print_error, print_warning
 from .exceptions import (
     RacException,
@@ -87,6 +87,8 @@ def execute(expr, supress_rename=False):
                 result = exec_remove_duplicates(expr, ndf)
             case "sort":
                 result = exec_sort(expr, ndf)
+            case "limit":
+                result = exec_limit(expr, ndf)
             case "rename":
                 result = exec_rename(expr, ndf, supress_rename)
                 if isinstance(result, NamedDataFrame):
@@ -181,7 +183,7 @@ def load_table(table_name):
         # check if it is a table from SQL connection
         if check_sql_for_table(table_name):
             # if the table exists, load and save it
-            query = f"SELECT * FROM `{table_name}`"
+            query = f"SELECT * FROM {format_identifier(table_name)}"
             cols, rows = run_query(query)
 
             df = pd.DataFrame(rows, columns=cols).convert_dtypes()
@@ -215,7 +217,7 @@ def load_table(table_name):
 def check_sql_for_table(table_name):
     """Return True if the given table name is in the connected sql database."""
 
-    check_query = f"SHOW TABLES LIKE '{table_name}'"
+    check_query = table_exists_query(table_name)
     result = run_query(check_query)
 
     if len(result[1]) == 0:
@@ -226,21 +228,31 @@ def check_sql_for_table(table_name):
 ## ~~~~~~~~ DATABASE OPERATIONS ~~~~~~~~ ##
 
 def exec_list():
-    """Return a list of all available tables."""
-    tables = {}
+    """Return available database and RAC relations by category."""
 
-    # get all tables from the sql connection
-    query = "SHOW TABLES;"
+    listing = {
+        "tables": [],
+        "temporary_tables": [],
+        "views": [],
+        "materialized_views": [],
+        "rac_virtual_views": [],
+    }
+
+    # Only explicitly saved rename/rho results are RAC virtual views. Older cached
+    # plain query results are display-only and should not stay usable/listed.
+    for name, ndf in list(saved_results.items()):
+        if getattr(ndf, "save", False):
+            listing["rac_virtual_views"].append(name)
+        else:
+            saved_results.pop(name, None)
+
+    query = list_relations_query()
     _, rows = run_query(query)
-    for row in rows:
-        tables[row[0]] = True
+    for category, relation_name in rows:
+        if category in listing:
+            listing[category].append(relation_name)
 
-    # get all new tables that have since been saved
-    for ndf in saved_results:
-        if ndf not in tables:
-            tables[ndf] = True
-
-    return list(tables)
+    return {category: names for category, names in listing.items() if names}
 
 def exec_drop(expr):
     """Remove the saved result from the list of available tables."""
@@ -403,7 +415,8 @@ def exec_sort(expr, ndf):
     df = ndf.df
     sort_attrs = expr["sort_attributes"]
 
-    # sort in reverse so the first listed attr has the higher sort importance
+    # Sort in reverse so the first listed attr has the higher sort importance.
+    # Stable sorting preserves secondary-key order across later passes.
     for attr in reversed(sort_attrs):
         # ensure the attribute is a valid column in the DataFrame
         col = attr[0]
@@ -411,9 +424,24 @@ def exec_sort(expr, ndf):
             raise InvalidColumnName(col)
 
         na_position = "first" if attr[1] else "last"
-        df = df.sort_values(by=col, ascending=attr[1], na_position=na_position)
+        df = df.sort_values(
+            by=col,
+            ascending=attr[1],
+            na_position=na_position,
+            kind="mergesort"
+        )
 
     return NamedDataFrame(expr['table_alias'], df)
+
+def exec_limit(expr, ndf):
+    """Return the first n rows of a DataFrame."""
+
+    count = expr["count"]
+    if count < 0:
+        raise ValueError("Limit count cannot be negative.")
+
+    return NamedDataFrame(expr["table_alias"], ndf.df.head(count).copy())
+
 
 def exec_rename(expr, ndf, supress_rename=False):
     """Rename the table to the given alias."""
@@ -772,6 +800,9 @@ def resolve_operand(df, operand, left=True):
             if t == "math_cond":
                 return evaluate_math_cond(df, operand)
 
+            if t == "date_part":
+                return evaluate_date_part(df, operand)
+
             if t == "comp_cond":
                 return evaluate_comparison_cond(df, operand)
             if t == "alias":
@@ -834,6 +865,51 @@ def evaluate_math_cond(df, expr):
             return left ** right
         case _:
             raise ValueError(f"Unsupported math operator: {op}")
+
+def format_attr_label(attr):
+    """Return a readable label for an attribute expression."""
+
+    if isinstance(attr, list):
+        return ".".join(str(part) for part in attr)
+    return str(attr)
+
+
+def date_part_alias(expr):
+    """Return the default output column for a date-part expression."""
+
+    attr_name = format_attr_label(expr["attr"]).replace(".", "_")
+    return f"{expr['func'].lower()}_{attr_name}"
+
+
+def evaluate_date_part(df, expr):
+    """Evaluate month(...) or year(...) for a date-like attribute."""
+
+    func = expr["func"].lower()
+    source = resolve_operand(df, expr["attr"])
+    if not isinstance(source, pd.Series):
+        raise InvalidColumnName(format_attr_label(expr["attr"]))
+
+    if pd.api.types.is_numeric_dtype(source):
+        raise ValueError(f"{func}() can only be used with date-like attributes.")
+
+    try:
+        dates = pd.to_datetime(source, errors="coerce")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{func}() can only be used with date-like attributes.") from e
+
+    invalid_dates = source.notna() & dates.isna()
+    if invalid_dates.any():
+        raise ValueError(f"{func}() can only be used with date-like attributes.")
+
+    if func == "month":
+        result = dates.dt.month
+    elif func == "year":
+        result = dates.dt.year
+    else:
+        raise ValueError(f"Unsupported date function: {func}")
+
+    return result.astype("Int64")
+
 
 def evaluate_comparison_cond(df, cond):
     """Recursively evaluate a comparison or logical condition."""
@@ -903,11 +979,15 @@ def process_attributes(df, attributes_expr):
     for attr in attributes_expr:
         if isinstance(attr, dict):
             # compute an aliased column
-            alias = attr["alias"]
-            if "cond" in attr:
-                df[alias] = evaluate_math_cond(df, attr["cond"])
-            elif "attr" in attr:
-                df[alias] = resolve_operand(df, attr["attr"])
+            if attr.get("type") == "date_part":
+                alias = attr.get("alias") or date_part_alias(attr)
+                df[alias] = evaluate_date_part(df, attr)
+            else:
+                alias = attr["alias"]
+                if "cond" in attr:
+                    df[alias] = evaluate_math_cond(df, attr["cond"])
+                elif "attr" in attr:
+                    df[alias] = resolve_operand(df, attr["attr"])
             processed_attrs.append(alias)
         elif isinstance(attr, list):
             # handle a dotted column name
@@ -946,9 +1026,9 @@ def parse_aggr_conds(aggr_conds, df):
             aggr_funcs[alias] = ("*", "size", distinct)
         elif op == "count":
             alias = alias if alias else f"count_{'_'.join(attrs)}{distinct_alias}"
-            aggr_funcs[alias] = (attr, op, distinct)
+            aggr_funcs[alias] = (attrs, op, distinct)
         else:
             alias = alias if alias else f"{op}_{'_'.join(attrs)}{distinct_alias}"
-            aggr_funcs[alias] = (attr[0], op, distinct)
+            aggr_funcs[alias] = (attrs[0], op, distinct)
 
     return aggr_funcs

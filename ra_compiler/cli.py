@@ -14,6 +14,14 @@ from .translator import RATranslator
 from .executor import execute, saved_results
 from .utils import clean_exit, print_error, print_debug
 
+RELATION_LIST_LABELS = [
+    ("tables", "Tables"),
+    ("temporary_tables", "Temporary tables"),
+    ("views", "Virtual views"),
+    ("materialized_views", "Materialized views"),
+    ("rac_virtual_views", "RAC virtual views"),
+]
+
 # import windows equivalent of readline
 try:
     import readline  # Unix / macOS
@@ -79,11 +87,9 @@ def run(save_to_out=False, query_counter=0):
             if result is None:
                 continue
 
-            # if the result is a table list, print our the tables
-            if isinstance(result, list):
-                print("List of tables:")
-                for table in result:
-                    print(f" - {table}")
+            # if the result is a relation listing, print each non-empty category
+            if isinstance(result, dict):
+                show_relation_listing(result)
                 continue
 
             # otherwise, cleanly output the datafram results
@@ -150,14 +156,44 @@ def handle_query(query, query_count=0):
     if result is None:
         return None
 
-    # if the result is a list, return the list
-    if isinstance(result, list):
+    # if the result is a relation listing, return the listing
+    if isinstance(result, dict):
         return result
 
-    # otherwise, reset the index then save the dataframe result
+    # otherwise, reset the index then save explicitly named virtual views
     result.df = result.df.reset_index(drop=True)
-    saved_results[result.name] = result
+    if result.save:
+        saved_results[result.name] = result
     return result
+
+def show_relation_listing(listing):
+    """Print relation listings, omitting empty categories."""
+
+    printed = False
+    known_categories = {category for category, _ in RELATION_LIST_LABELS}
+
+    for category, label in RELATION_LIST_LABELS:
+        names = listing.get(category, [])
+        if not names:
+            continue
+
+        print(f"{label}:")
+        for name in names:
+            print(f" - {name}")
+        printed = True
+
+    for category, names in listing.items():
+        if category in known_categories or not names:
+            continue
+
+        print(f"{category.replace('_', ' ').title()}:")
+        for name in names:
+            print(f" - {name}")
+        printed = True
+
+    if not printed:
+        print("No relations found.")
+
 
 def show_dataframe(df_name, df):
     """Nicely print out a pandas DataFrame with a corresponding name."""

@@ -16,18 +16,19 @@ This is a **relational algebra–focused** language for expressing queries over 
 - Database Operations:
     - [List](#list)
     - [Drop](#drop)
-- Unary Operations: 
+- Unary Operations:
     - [Projection](#projection)
     - [Selection](#selection)
     - [Group By/Aggregation](#group-by-and-aggregation)
     - [Remove Duplicates](#remove-duplicates)
     - [Sort](#sort)
+    - [Limit](#limit)
     - [Rename](#rename)
-- Set Operations: 
+- Set Operations:
     - [Union](#union)
     - [Intersection](#intersection)
     - [Difference](#difference)
-- Merge Operations: 
+- Merge Operations:
     - [Cross Product](#cross-product)
     - [Joins](#joins)
     - [Divide](#divide)
@@ -47,7 +48,7 @@ This is a **relational algebra–focused** language for expressing queries over 
 
 ### List
 
-Shows all available tables and virtual views that can be used in expressions.
+Shows available database relations and RAC virtual views that can be used in expressions.
 
 **Valid Keywords Variations**: `\list`, `list`
 
@@ -57,30 +58,33 @@ list
 \list
 ```
 
-**Explanation**:  
-- Returns a list of all currently available tables from the SQL database and stored virtual views.  
-- Useful to check which relations are accessible at any point.  
+**Explanation**:
+- Returns non-empty categories only.
+- PostgreSQL listings include visible tables, temporary tables, virtual views, materialized views, and RAC virtual views.
+- MySQL listings include tables, views, and RAC virtual views.
+- Unnamed query results such as _rac_q2 are displayed once but are not saved or listed.
+- Useful to check which relations are accessible at any point.
 
 ---
 
 ### Drop
 
-Removes a virtual view from the available list of relations. Can be used to discard intermediate query results or free memory.  
+Removes a virtual view from the available list of relations. Can be used to discard saved virtual views or free memory.
 
 **Valid Keywords Variations**: `\drop`
 
 **Syntax options**:
 ```
-(\drop Students)
-(\drop _rac_q1)
+(\drop StudentsView)
+(\drop RecentStudents)
 (\drop -all)
 ```
 
-**Explanation**:  
-- Deletes the specified virtual view from the working set.  
-- After dropping, the table will no longer appear in `\list`.  
-- This does not delete the original tables from the SQL database, only the virtual views created during the session.  
-- `-all` can be used to remove all saved virtual views and previous query results.
+**Explanation**:
+- Deletes the specified virtual view from the working set.
+- After dropping, the virtual view will no longer appear in `\list`.
+- This does not delete the original tables from the SQL database, only the virtual views created during the session.
+- `-all` can be used to remove all saved virtual views.
 
 ---
 
@@ -100,12 +104,14 @@ Selects specific attributes, optionally renaming them or computing derived value
 (\projection{name, age} Students)
 (\pi^d{name, age} Students)         ; keeps duplicates
 (\pi{name + 2 -> agePlus2} Students)
+(\pi{month(enrolledOn), year(enrolledOn) -> enrolledYear} Students)
 (\projection{name -> fullName} Students)
 ```
 
 **Explanation**:
 - Returns a table with only the specified attributes.
 - `->` can be used to rename attributes or give aliases to expressions.
+- `month(date_attr)` and `year(date_attr)` can be used to project date parts. Without `->`, output columns use names like `month_tdate`.
 - `^d` means **"don't remove duplicates"**, i.e., use bag semantics instead of set semantics.
 
 ---
@@ -123,7 +129,7 @@ Filters rows based on a condition.
 (\select{name = "Alice"} Employees)
 ```
 
-**Explanation**: 
+**Explanation**:
 - Keeps only the rows from the input table that satisfy the given condition.
 - If the condition evaluates to True, it will return every row. Similarly, if the condition evaluates to False, it will return no rows.
 
@@ -148,7 +154,7 @@ Groups rows by one or more attributes and applies aggregate functions (e.g., `su
 - The part after the `;` contains aggregation expressions.
 - Aggregates can include `count`, `sum`, `avg`, `min`, and `max`.
     - `count(*)` can be used to count all unique grouped-by rows
-    - `distinct` can be used to only include unique values per aggregate 
+    - `distinct` can be used to only include unique values per aggregate
     - `->` can be used after an aggregate to rename the resulting column
 
 ---
@@ -184,6 +190,22 @@ Sorts rows by specified attributes in ascending or descending order.
 ```
 
 **Explanation**: Orders the rows based on one or more attributes and directions. Valid directions are `asc` (ascending) and `desc` (descending).
+
+---
+
+### Limit
+
+Returns the first n rows from a relation.
+
+**Valid Keywords Variations**: `\limit`
+
+**Syntax options**:
+```
+(\limit{10} Students)
+(\limit{5} (\sort{age desc} Students))
+```
+
+**Explanation**: Keeps the current row order and returns the first n tuples. It can be composed after sort to retrieve top-n rows.
 
 ---
 
@@ -288,8 +310,8 @@ Produces the Cartesian product of two relations.
 
 Combines rows from two tables based on a condition or join type.
 
-**Valid Keywords Variations**: 
-- Inner Join: 
+**Valid Keywords Variations**:
+- Inner Join:
     - `\j`, `\join`
     - `\inner`, `\inner_j`, `\inner_join`
 
@@ -300,12 +322,12 @@ Combines rows from two tables based on a condition or join type.
 - Inner\Semi Right Join:
     - `\right_semi`, `\right_semi_j`, `\right_semi_join`
 
-- Full Outer Join: 
+- Full Outer Join:
     - `\full`, `\full_j`, `\full_join`
     - `\full_outer`, `\full_outer_j`, `\full_outer_join`
     - `\outer`, `\outer_j`, `\outer_join`
 
-- Left Outer Join: 
+- Left Outer Join:
     - `\left`, `\left_j`, `\left_join`
     - `\left_outer`, `\left_outer_j`, `\left_outer_join`
 

@@ -30,12 +30,14 @@ unary_ops: projection
          | rename
          | remove_duplicates
          | sort
+         | limit
 
 projection: PROJ_PREFIX "{" attributes "}" table
 selection: _SEL_PREFIX "{" comp_cond "}" table
 group: _GROUP_PREFIX "{" (attributes ";")? aggr_conds "}" table
 remove_duplicates: _REMOVE_DUPLICATES_PREFIX table
 sort: _SORT_PREFIX "{" sort_attributes "}" table  
+limit: _LIMIT_PREFIX "{" NUMBER "}" table
 rename: _RENAME_PREFIX "{" CNAME "}" _expr
         | _RENAME_PREFIX "(" CNAME "," _expr ")"
 
@@ -50,6 +52,8 @@ _RENAME_PREFIX: /\/(rename|rho)(?![a-z])/
 _REMOVE_DUPLICATES_PREFIX: /\/(remove_duplicates|remove_dups|delta)(?![a-z])/
 
 _SORT_PREFIX: /\/(sort|order|tau)(?![a-z])/
+
+_LIMIT_PREFIX: /\/limit(?![a-z])/i
 
 
 // ~~~~~~~~ SET OPERATIONS ~~~~~~~~ //
@@ -128,17 +132,20 @@ attributes: attr ("," attr)*
 sort_attributes: sort_attr ("," sort_attr)*
 sort_attr: attr SORT_DIR
 
-?attr: math_cond "->" CNAME
+?attr: date_part_func ("->" CNAME)?
+        | math_cond "->" CNAME
         | alias_attr
         | _table_attr
 
 _table_attr: CNAME ("." CNAME)?
+date_part_func: DATE_PART_FUNC "(" _table_attr ")"
 alias_attr: CNAME "->" CNAME
 
 ?math_cond: math_term MATH_OP math_term
           | "(" math_cond ")"
 
-?math_term: _table_attr
+?math_term: date_part_func
+          | _table_attr
           | NUMBER
           | math_cond
 
@@ -163,6 +170,7 @@ MATH_OP: "+" | "-" | "*" | "/" | "%" | "^"
 COMP_OP: ">" | "<" | ">=" | "<=" | "!=" | "==" | "="
 AGGR_OP: "sum"i | "avg"i | "min"i | "max"i | "mean"i
 COUNT_OP: "count"i
+DATE_PART_FUNC: "month"i | "year"i
 AND: "and"i | "&&" | "&" 
 OR: "or"i | "||" | "|"
 SORT_DIR: "asc"i | "desc"i
