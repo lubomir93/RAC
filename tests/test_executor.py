@@ -189,6 +189,18 @@ class TestJoinHelpers(unittest.TestCase):
 
 class TestExecutor(BaseTest):
 
+    def test_count_star_counts_all_rows_even_when_all_values_are_null(self):
+        df = pd.DataFrame({"a": [None, None], "b": [None, 1]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": [],
+            "aggr_cond": [{"aggr": "count", "attr": ["*"]}],
+        }
+
+        result = exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(result.df.iloc[0, 0], 2)
+
     def test_evaluate_comparison_cond_with_null_literals_returns_false(self):
         df = pd.DataFrame({"a": [1, 2]})
         cond = {"op": "=", "left": None, "right": None}

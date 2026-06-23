@@ -326,10 +326,10 @@ def exec_group(expr, ndf):
         if func == "size" and col == "*":
             temp_col = f"__mask_{alias}"
             if distinct:
-                valid_rows = df.notna().any(axis=1)
-                mask = valid_rows & (~df[valid_rows].duplicated(keep="first"))
+                mask = pd.Series(True, index=df.index, dtype="boolean")
+                mask = mask & (~df.duplicated(keep="first"))
             else:
-                mask = df.notna().any(axis=1)
+                mask = pd.Series(True, index=df.index, dtype="boolean")
 
             df[temp_col] = mask.astype(int)
             agg_dict[alias] = pd.NamedAgg(column=temp_col, aggfunc="sum")
@@ -366,7 +366,7 @@ def exec_agg_without_group(orig_df, aggr_funcs):
             df = orig_df
 
         if func == "size" and col == "*":
-            result = df.notna().any(axis=1).sum()
+            result = len(df)
         elif func == "count":
             mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
             result = mask.sum()
