@@ -157,6 +157,7 @@ comp_cond: TRUTH_VAL
 _comp_term: attr
           | NUMBER
           | STRING
+          | NULL_LITERAL
           | math_cond
 
 
@@ -175,6 +176,7 @@ AND: "and"i | "&&" | "&"
 OR: "or"i | "||" | "|"
 SORT_DIR: "asc"i | "desc"i
 TRUTH_VAL: "true"i | "false"i | "t"i | "f"i
+NULL_LITERAL: "null"i
 STRING: ESCAPED_STRING | "'" _STRING_ESC_INNER "'"
 DISTINCT: "distinct"i | "^d"i
 ALL: "-all"i

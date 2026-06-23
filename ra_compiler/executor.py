@@ -1021,6 +1021,11 @@ def evaluate_comparison_cond(df, cond, join_context=None):
         right_val = pd.Series([right_val] * len(df), index=df.index)
 
     # get which rows have NA's
+    if not isinstance(left_val, pd.Series):
+        left_val = pd.Series([left_val] * len(df), index=df.index)
+    if not isinstance(right_val, pd.Series):
+        right_val = pd.Series([right_val] * len(df), index=df.index)
+
     na_mask = left_val.isna() | right_val.isna()
     non_na_idx = ~na_mask
 

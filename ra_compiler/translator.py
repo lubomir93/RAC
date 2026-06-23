@@ -351,6 +351,9 @@ class RATranslator(Transformer):
         else:
             raise ValueError(f"Invalid truth value: {token.value}")
 
+    def NULL_LITERAL(self, _):
+        return None
+
     def DISTINCT(self, _):
         return True
 

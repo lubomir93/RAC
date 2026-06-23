@@ -189,6 +189,15 @@ class TestJoinHelpers(unittest.TestCase):
 
 class TestExecutor(BaseTest):
 
+    def test_evaluate_comparison_cond_with_null_literals_returns_false(self):
+        df = pd.DataFrame({"a": [1, 2]})
+        cond = {"op": "=", "left": None, "right": None}
+
+        result = exe.evaluate_comparison_cond(df, cond)
+
+        self.assertTrue(result.dtype == "boolean")
+        self.assertEqual(result.tolist(), [False, False])
+
     def test_execute_empty(self):
         self.assertRaises(ValueError, exe.execute, None)
         self.assertRaises(ValueError, exe.execute, {})
