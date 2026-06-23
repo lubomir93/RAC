@@ -201,6 +201,31 @@ class TestExecutor(BaseTest):
 
         self.assertEqual(result.df.iloc[0, 0], 2)
 
+    def test_grouped_count_distinct_column_is_per_group(self):
+        df = pd.DataFrame({"g": ["x", "x", "y", "y"], "v": [1, 1, 2, 2]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": ["g"],
+            "aggr_cond": [{"aggr": "count", "attr": ["v"], "distinct": True}],
+        }
+
+        result = exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(result.df.loc[0, "count_v_^d"], 1)
+        self.assertEqual(result.df.loc[1, "count_v_^d"], 1)
+
+    def test_grouped_aggregation_does_not_mutate_input_data(self):
+        df = pd.DataFrame({"g": ["x", "x"], "v": [1, 2]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": ["g"],
+            "aggr_cond": [{"aggr": "count", "attr": ["v"]}],
+        }
+
+        exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(list(df.columns), ["g", "v"])
+
     def test_evaluate_comparison_cond_with_null_literals_returns_false(self):
         df = pd.DataFrame({"a": [1, 2]})
         cond = {"op": "=", "left": None, "right": None}

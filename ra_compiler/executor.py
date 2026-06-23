@@ -317,43 +317,45 @@ def exec_group(expr, ndf):
         result_df = exec_agg_without_group(df, aggr_funcs)
         return NamedDataFrame(expr['table_alias'], result_df)
 
-    group_df = df.groupby(group_attrs, sort=False)
+    group_df = df.groupby(group_attrs, sort=False, dropna=False)
 
-    # construct aggregation mapping for pandas
-    agg_dict = {}
+    def count_non_distinct(group, columns):
+        if columns == ["*"]:
+            return len(group)
+        mask = ~pd.concat([group[c].isna() for c in columns], axis=1).all(axis=1)
+        return int(mask.sum())
+
+    def count_distinct(group, columns):
+        if columns == ["*"]:
+            return int(group.drop_duplicates().shape[0])
+        subset = group[columns].copy()
+        valid_rows = ~subset.isna().all(axis=1)
+        return int(subset.loc[valid_rows].drop_duplicates().shape[0])
+
+    result_parts = []
     for alias, (col, func, distinct) in aggr_funcs.items():
-        # when count by *, return how many rows are in each group
         if func == "size" and col == "*":
-            temp_col = f"__mask_{alias}"
-            if distinct:
-                mask = pd.Series(True, index=df.index, dtype="boolean")
-                mask = mask & (~df.duplicated(keep="first"))
-            else:
-                mask = pd.Series(True, index=df.index, dtype="boolean")
-
-            df[temp_col] = mask.astype(int)
-            agg_dict[alias] = pd.NamedAgg(column=temp_col, aggfunc="sum")
-
+            values = group_df.apply(lambda group: group.shape[0] if not distinct else group.drop_duplicates().shape[0])
         elif func == "count":
-            temp_col = f"__mask_{alias}"
-
-            if distinct:
-                valid_rows = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
-                group_cols = group_attrs + col
-                mask = valid_rows & (~df[valid_rows].duplicated(subset=group_cols, keep="first"))
-            else:
-                # count when EITHER is not null
-                mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
-
-            df[temp_col] = mask.astype(int)
-            agg_dict[alias] = pd.NamedAgg(column=temp_col, aggfunc="sum")
-
+            values = group_df.apply(lambda group: count_distinct(group, col) if distinct else count_non_distinct(group, col))
         else:
             agg_func = make_agg_func(func, distinct)
-            agg_dict[alias] = pd.NamedAgg(column=col, aggfunc=agg_func)
+            if isinstance(col, list):
+                values = group_df[col[0]].agg(agg_func)
+            else:
+                values = group_df[col].agg(agg_func)
 
-    result_df = group_df.agg(**agg_dict).reset_index()
-    return NamedDataFrame(expr['table_alias'], result_df)
+        part = values.reset_index(name=alias)
+        result_parts.append(part)
+
+    if not result_parts:
+        return NamedDataFrame(expr['table_alias'], df[group_attrs].drop_duplicates().reset_index(drop=True))
+
+    result_df = result_parts[0]
+    for part in result_parts[1:]:
+        result_df = result_df.merge(part, on=group_attrs, how="outer")
+
+    return NamedDataFrame(expr['table_alias'], result_df.reset_index(drop=True))
 
 def exec_agg_without_group(orig_df, aggr_funcs):
     result_df = pd.DataFrame()
