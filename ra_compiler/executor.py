@@ -527,6 +527,51 @@ def strip_suffixes(col):
         col = col[:-2]
     return col
 
+def normalize_relation_name(name):
+    return str(name).lower()
+
+def collect_relation_names(table_expr):
+    """Return relation names that can legally qualify columns for an expression."""
+
+    names = set()
+    if table_expr is None:
+        return names
+
+    if isinstance(table_expr, str):
+        names.add(normalize_relation_name(table_expr))
+        return names
+
+    if isinstance(table_expr, dict):
+        if table_expr.get("operation") == "rename":
+            alias = table_expr.get("table_alias")
+            if alias:
+                names.add(normalize_relation_name(alias))
+
+        for key in ("table", "table1", "table2"):
+            names.update(collect_relation_names(table_expr.get(key)))
+
+    return names
+
+def build_join_context(expr, ndf1, ndf2, left_cols, right_cols):
+    """Build metadata used to resolve qualified join predicates."""
+
+    left_names = collect_relation_names(expr.get("table1"))
+    right_names = collect_relation_names(expr.get("table2"))
+    left_names.update(collect_relation_names(getattr(ndf1, "query", None)))
+    right_names.update(collect_relation_names(getattr(ndf2, "query", None)))
+
+    if ndf1.name:
+        left_names.add(normalize_relation_name(ndf1.name))
+    if ndf2.name:
+        right_names.add(normalize_relation_name(ndf2.name))
+
+    return {
+        "left_names": left_names,
+        "right_names": right_names,
+        "left_cols": set(left_cols),
+        "right_cols": set(right_cols),
+    }
+
 def prepare_for_merge_op(left_df, right_df):
     """Ensure no duplicate column names between left_df and right_df.
     Adds _L or _R suffixes to duplicates, preserving any existing suffixes."""
@@ -605,7 +650,8 @@ def exec_join(expr, ndf1, ndf2):
         merge, left_cols, right_cols = merge_and_get_cols(df1_dr, df2_dr, 'cross')
 
         # evaulate the condition to get a mask of the wanted rows
-        mask = evaluate_comparison_cond(merge, condition)
+        join_context = build_join_context(expr, ndf1, ndf2, left_cols, right_cols)
+        mask = evaluate_comparison_cond(merge, condition, join_context=join_context)
         if isinstance(mask, bool):
             mask = pd.Series(condition, index=merge.index)
 
@@ -641,23 +687,27 @@ def merge_and_get_cols(df1_dr, df2_dr, merge_how, attributes=None):
     return merge, left_cols, right_cols
 
 def fix_null_matches(merge, merge_how, df1, df2, attributes):
-    both_null_mask = (merge["_merge"] == "both") & merge[attributes].isna().all(axis=1)
-    rows_to_split = merge.loc[both_null_mask]
+    null_key_match_mask = (merge["_merge"] == "both") & merge[attributes].isna().any(axis=1)
+    rows_to_split = merge.loc[null_key_match_mask]
 
     if rows_to_split.empty:
         return merge.drop(columns=["_merge"])
 
     left_cols = df1.columns.tolist()
     right_cols = df2.columns.tolist()
+    left_rows = rows_to_split.drop_duplicates("_left_id")
+    right_rows = rows_to_split.drop_duplicates("_right_id")
 
     new_rows = []
-    for _, r in rows_to_split.iterrows():
-        if merge_how in ("outer", "left"):
+    if merge_how in ("outer", "left"):
+        for _, r in left_rows.iterrows():
             new_rows.append(nullify_side(r, right_cols, attributes, "_right_id"))
-        if merge_how in ("outer", "right"):
+
+    if merge_how in ("outer", "right"):
+        for _, r in right_rows.iterrows():
             new_rows.append(nullify_side(r, left_cols, attributes, "_left_id"))
 
-    merge = merge.loc[~both_null_mask].copy()
+    merge = merge.loc[~null_key_match_mask].copy()
     merge = pd.concat([merge, pd.DataFrame(new_rows)], ignore_index=True)
 
     return merge.drop(columns=["_merge"])
@@ -789,7 +839,33 @@ def exec_divide(expr, ndf1, ndf2):
 
 ## ~~~~~~~~ TABLES, ATTRIBUTES, & OTHER ~~~~~~~~ ##
 
-def resolve_operand(df, operand, left=True):
+def get_qualified_side(qualifier, join_context):
+    """Return the join side for a table qualifier, or None if ambiguous."""
+
+    if not qualifier or not join_context:
+        return None
+
+    qualifier = normalize_relation_name(qualifier)
+    left_match = qualifier in join_context.get("left_names", set())
+    right_match = qualifier in join_context.get("right_names", set())
+
+    if left_match and not right_match:
+        return "left"
+    if right_match and not left_match:
+        return "right"
+    return None
+
+def resolve_column_from_side(df, col_name, side, join_context):
+    suffix = "_L" if side == "left" else "_R"
+    side_cols = join_context.get(f"{side}_cols", set())
+
+    for candidate in (f"{col_name}{suffix}", col_name):
+        if candidate in side_cols and candidate in df.columns:
+            return df[candidate]
+
+    raise InvalidColumnName(col_name)
+
+def resolve_operand(df, operand, left=True, join_context=None):
     """Resolve a column reference, literal, or math expression into a value or Series."""
 
     try:
@@ -798,25 +874,31 @@ def resolve_operand(df, operand, left=True):
         if isinstance(operand, dict):
             t = operand.get("type")
             if t == "math_cond":
-                return evaluate_math_cond(df, operand)
+                return evaluate_math_cond(df, operand, join_context=join_context)
 
             if t == "date_part":
-                return evaluate_date_part(df, operand)
+                return evaluate_date_part(df, operand, join_context=join_context)
 
             if t == "comp_cond":
-                return evaluate_comparison_cond(df, operand)
+                return evaluate_comparison_cond(df, operand, join_context=join_context)
             if t == "alias":
                 alias = operand["alias"]
-                df[alias] = resolve_operand(df, operand["attr"])
+                df[alias] = resolve_operand(df, operand["attr"], join_context=join_context)
                 return df[alias]
 
             raise ValueError(f"Unknown operand type: {t}")
 
         # resolve table.attr names
         if isinstance(operand, list):
-            join_name = operand[-1] + "_L" if left else operand[-1] + "_R"
-            if operand[-1] in df:
-                return df[operand[-1]]
+            qualifier = operand[0] if len(operand) > 1 else None
+            col_name = operand[-1]
+            qualified_side = get_qualified_side(qualifier, join_context)
+            if qualified_side:
+                return resolve_column_from_side(df, col_name, qualified_side, join_context)
+
+            join_name = col_name + "_L" if left else col_name + "_R"
+            if col_name in df:
+                return df[col_name]
 
             if join_name in df:
                 return df[join_name]
@@ -844,10 +926,10 @@ def resolve_operand(df, operand, left=True):
     except KeyError as e:
         raise InvalidColumnName(e.args[0]) from e
 
-def evaluate_math_cond(df, expr):
+def evaluate_math_cond(df, expr, join_context=None):
     """Evaluate a math expression with the given df."""
-    left = resolve_operand(df, expr["left"])
-    right = resolve_operand(df, expr["right"], left=False)
+    left = resolve_operand(df, expr["left"], join_context=join_context)
+    right = resolve_operand(df, expr["right"], left=False, join_context=join_context)
     op = expr["op"]
 
     match op:
@@ -881,11 +963,11 @@ def date_part_alias(expr):
     return f"{expr['func'].lower()}_{attr_name}"
 
 
-def evaluate_date_part(df, expr):
+def evaluate_date_part(df, expr, join_context=None):
     """Evaluate month(...) or year(...) for a date-like attribute."""
 
     func = expr["func"].lower()
-    source = resolve_operand(df, expr["attr"])
+    source = resolve_operand(df, expr["attr"], join_context=join_context)
     if not isinstance(source, pd.Series):
         raise InvalidColumnName(format_attr_label(expr["attr"]))
 
@@ -911,7 +993,7 @@ def evaluate_date_part(df, expr):
     return result.astype("Int64")
 
 
-def evaluate_comparison_cond(df, cond):
+def evaluate_comparison_cond(df, cond, join_context=None):
     """Recursively evaluate a comparison or logical condition."""
 
     # if the condition is a boolean, return a full/empty mask
@@ -920,8 +1002,8 @@ def evaluate_comparison_cond(df, cond):
 
     # recursive and/or condition
     if cond["op"] in {"AND", "OR"}:
-        left_mask = evaluate_comparison_cond(df, cond["left"])
-        right_mask = evaluate_comparison_cond(df, cond["right"])
+        left_mask = evaluate_comparison_cond(df, cond["left"], join_context=join_context)
+        right_mask = evaluate_comparison_cond(df, cond["right"], join_context=join_context)
 
         if cond["op"] == "AND":
             return left_mask & right_mask
@@ -929,8 +1011,8 @@ def evaluate_comparison_cond(df, cond):
             return left_mask | right_mask
 
     # binary comparison operator
-    left_val = resolve_operand(df, cond["left"])
-    right_val = resolve_operand(df, cond["right"], left=False)
+    left_val = resolve_operand(df, cond["left"], join_context=join_context)
+    right_val = resolve_operand(df, cond["right"], left=False, join_context=join_context)
     op = cond["op"]
 
     if not isinstance(left_val, pd.Series):

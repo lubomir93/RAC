@@ -102,6 +102,91 @@ class TestLimitHelpers(unittest.TestCase):
             exe.exec_limit(expr, exe.NamedDataFrame("T", df))
 
 
+class TestJoinHelpers(unittest.TestCase):
+
+    def test_qualified_condition_uses_table_names_for_duplicate_columns(self):
+        left = exe.NamedDataFrame("A", pd.DataFrame({"x": [1], "y": [7]}))
+        right = exe.NamedDataFrame("B", pd.DataFrame({"x": [9], "y": [1]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "inner",
+            "table1": "A",
+            "table2": "B",
+            "condition": {
+                "type": "comp_cond",
+                "left": ["B", "y"],
+                "op": "=",
+                "right": ["A", "x"],
+            },
+        }
+
+        result = exe.exec_join(expr, left, right)
+
+        pd.testing.assert_frame_equal(
+            result.df,
+            pd.DataFrame({"x_L": [1], "y_L": [7], "x_R": [9], "y_R": [1]})
+                .convert_dtypes(),
+        )
+
+    def test_qualified_condition_does_not_match_opposite_duplicate_columns(self):
+        left = exe.NamedDataFrame("A", pd.DataFrame({"x": [1], "y": [7]}))
+        right = exe.NamedDataFrame("B", pd.DataFrame({"x": [7], "y": [9]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "inner",
+            "table1": "A",
+            "table2": "B",
+            "condition": {
+                "type": "comp_cond",
+                "left": ["B", "y"],
+                "op": "=",
+                "right": ["A", "x"],
+            },
+        }
+
+        result = exe.exec_join(expr, left, right)
+
+        self.assertTrue(result.df.empty)
+
+    def test_left_join_does_not_match_partial_null_composite_keys(self):
+        left = exe.NamedDataFrame("A", pd.DataFrame({"a": [1], "b": [pd.NA], "v": ["left"]}))
+        right = exe.NamedDataFrame("B", pd.DataFrame({"a": [1], "b": [pd.NA], "w": ["right"]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "left",
+            "attributes": ["a", "b"],
+        }
+
+        result = exe.exec_join(expr, left, right)
+
+        expected_left_side = pd.DataFrame({
+            "a": [1],
+            "b": [pd.NA],
+            "v": ["left"],
+        }).convert_dtypes()
+        pd.testing.assert_frame_equal(result.df[["a", "b", "v"]], expected_left_side, check_dtype=False)
+        self.assertTrue(pd.isna(result.df.loc[0, "w"]))
+
+    def test_outer_join_splits_partial_null_composite_key_rows(self):
+        left = exe.NamedDataFrame("A", pd.DataFrame({"a": [1], "b": [pd.NA], "v": ["left"]}))
+        right = exe.NamedDataFrame("B", pd.DataFrame({"a": [1], "b": [pd.NA], "w": ["right"]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "outer",
+            "attributes": ["a", "b"],
+        }
+
+        result = exe.exec_join(expr, left, right)
+
+        expected = pd.DataFrame({
+            "a": [1, 1],
+            "b": [pd.NA, pd.NA],
+            "v": ["left", pd.NA],
+            "w": [pd.NA, "right"],
+        }).convert_dtypes()
+        pd.testing.assert_frame_equal(result.df, expected, check_dtype=False)
+
+
 class TestExecutor(BaseTest):
 
     def test_execute_empty(self):
