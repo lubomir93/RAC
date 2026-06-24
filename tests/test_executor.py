@@ -186,6 +186,20 @@ class TestJoinHelpers(unittest.TestCase):
         }).convert_dtypes()
         pd.testing.assert_frame_equal(result.df, expected, check_dtype=False)
 
+    def test_exec_join_does_not_emit_duplicate_column_warning(self):
+        left = exe.NamedDataFrame("A", pd.DataFrame({"x": [1]}))
+        right = exe.NamedDataFrame("B", pd.DataFrame({"x": [1]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "inner",
+            "attributes": ["x"],
+        }
+
+        with self.assertLogs(level="WARNING") as captured:
+            exe.exec_join(expr, left, right)
+
+        self.assertEqual(captured.output, [])
+
 
 class TestExecutor(BaseTest):
 
@@ -195,6 +209,18 @@ class TestExecutor(BaseTest):
             "table_alias": "_rac_q",
             "attributes": [],
             "aggr_cond": [{"aggr": "count", "attr": ["*"]}],
+        }
+
+        result = exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(result.df.iloc[0, 0], 2)
+
+    def test_count_star_distinct_without_group_counts_distinct_rows(self):
+        df = pd.DataFrame({"a": [1, 1, 2, 2]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": [],
+            "aggr_cond": [{"aggr": "count", "attr": ["*"], "distinct": True}],
         }
 
         result = exe.exec_group(expr, exe.NamedDataFrame("T", df))

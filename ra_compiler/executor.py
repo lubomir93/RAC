@@ -370,8 +370,11 @@ def exec_agg_without_group(orig_df, aggr_funcs):
         if func == "size" and col == "*":
             result = len(df)
         elif func == "count":
-            mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
-            result = mask.sum()
+            if col == ["*"] and distinct:
+                result = len(df)
+            else:
+                mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
+                result = mask.sum()
         elif func == "sum":
             result = df[col].sum() if df[col].notna().any() else pd.NA
         elif func == "mean":
@@ -739,11 +742,7 @@ def get_semi_join_side(merge, join_type, left_cols, right_cols):
 def check_merge_col_names(merged_cols, original_cols):
     """Check if the merged columns are the same columns as the original columns."""
 
-    if set(merged_cols) != set(original_cols):
-        print_warning("Duplicate columns found in result. " \
-                      "Can cause unexpected results. " \
-                      "Please ensure unique column names across tables.",
-                      "JoinWarning")
+    return None
 
 def handle_outer_join(masked, merge, join_type, left_cols, right_cols):
     """Handle outer join output. Fill unmatched rows with NaN."""

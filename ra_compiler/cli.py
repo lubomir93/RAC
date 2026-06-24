@@ -5,6 +5,7 @@ import os
 import argparse
 import pathlib
 import atexit
+import sys
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
@@ -70,13 +71,46 @@ def rac_setup(args):
 
     run(save_to_out=args.out)
 
+def find_matching_bracket(text, closing_index):
+    """Return the index of the matching opening bracket for a closing bracket."""
+
+    if closing_index < 0 or closing_index >= len(text):
+        return -1
+
+    closing = text[closing_index]
+    opening = {')': '(', '}': '{'}.get(closing)
+    if opening is None:
+        return -1
+
+    depth = 0
+    for idx in range(closing_index, -1, -1):
+        char = text[idx]
+        if char == opening:
+            if depth == 0:
+                return idx
+            depth -= 1
+        elif char in {'(', '{'}:
+            depth += 1
+
+    return -1
+
+
+def prompt_for_query(prompt='> '):
+    """Read a query line using the standard input prompt."""
+
+    try:
+        return input(prompt)
+    except EOFError:
+        raise
+
+
 def run(save_to_out=False, query_counter=0):
     """Repeatedly handle user input, parses queries, and displays results."""
 
     try:
         while True:
             # grab user input
-            query = input("> ")
+            query = prompt_for_query()
 
             # check if the command was a help/exit request
             if check_if_help_command(query):
@@ -199,7 +233,7 @@ def show_dataframe(df_name, df):
     """Nicely print out a pandas DataFrame with a corresponding name."""
 
     # convert the columns to nullable types for consistency
-    df.convert_dtypes()
+    df = df.convert_dtypes()
 
     # use the rich Console to display the table
     console = Console()
@@ -213,3 +247,4 @@ def show_dataframe(df_name, df):
             for v in row
         ])
     console.print(table)
+    return df

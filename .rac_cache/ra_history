@@ -1,28 +1,3 @@
-/gamma_{cid,cname,month(tdate),year(tdate);count(*)} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)=>total} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)=>total} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)->total} ((customer /join ownership) /join payment)
-/sigma_{total>1}(/gamma_{cid,cname,month(pdate),year(pdate);count(*)->total} ((customer /join ownership) /join payment))
-/pi_{cid,cname}(/sigma_{total>1}(/gamma_{cid,cname,month(pdate),year(pdate);count(*)->total} ((customer /join ownership) /join payment)))
-/gamma_{cid,cname,month(pdate),year(pdate);count(*)->total} ((customer /join ownership) /join payment)
-/gamma_{cid,cname,month(pdate)->month,year(pdate)->year;count(*)->total} ((customer /join ownership) /join payment)
-/rho(t1,/gamma_{cid,cname,month(pdate)->month,year(pdate)->year;count(*)->total} ((customer /join ownership) /join payment))
-t1
-/sigma_{year = 2025} t1
-/rho(t2,/sigma_{year = 2025} t1)
-t2
-/gamma_{cid,cname;count(*)->total} t2
-/sigma_{total < 12} (/gamma_{cid,cname;count(*)->total} t2)
-exit;
-exit
-list
-creditcard
-quit
-A
-B
-(A /join_{B.y=A.x} B)
 A
 B
 A /join _{B.a = A.y} B
@@ -47,4 +22,29 @@ A /left_{a, b} B
 A
 B
  /sigma_{NULL=NULL} A
+quit
+list
+a
+/sigma_{NULL=NULL} a
+quit
+/list
+/sigma_{NULL=NULL} a
+quit
+list
+a
+b
+a /join b
+a /join_{a.b=b.a} b
+quit
+a /join_{a.b=b.a} b
+a
+b
+a /join_{a.a=b.a} b
+quit
+list
+a
+/sigma_{a>3} a
+/sigma_{a>0} a
+payment
+/gamma_{count(*)->total} payment
 quit

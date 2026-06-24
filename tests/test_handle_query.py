@@ -5,6 +5,12 @@ import pandas as pd
 from tests.test_base import BaseTest
 import ra_compiler.cli as cli
 
+class TestBracketHighlighting(unittest.TestCase):
+
+    def test_find_matching_bracket_returns_opening_index(self):
+        self.assertEqual(cli.find_matching_bracket("(a{b})", 4), 2)
+        self.assertEqual(cli.find_matching_bracket("(a{b})", 5), 0)
+
 class TestHandleQuery(BaseTest):
 
     def _run_and_check(self, query, expected_cols):
@@ -30,6 +36,15 @@ class TestHandleQuery(BaseTest):
 
         expected = pd.DataFrame({"b": [1, 2, 3]})
         pd.testing.assert_frame_equal(df, expected, check_dtype=False, check_index_type=False)
+
+    def test_show_dataframe_returns_nullable_converted_frame(self):
+        df = pd.DataFrame({"a": [1, None], "b": ["x", None]}, dtype=object)
+
+        converted = cli.show_dataframe("demo", df)
+
+        self.assertIsNotNone(converted)
+        self.assertEqual(str(converted.dtypes["a"]), "Int64")
+        self.assertEqual(str(converted.dtypes["b"]), "string")
 
     def test_sigma_true(self):
         df = self._run_and_check("(/sigma{True} (testTabR))", ["age", "b", "c", "d", "name"])
