@@ -10,6 +10,13 @@ class TestBracketHighlighting(unittest.TestCase):
     def test_find_matching_bracket_returns_opening_index(self):
         self.assertEqual(cli.find_matching_bracket("(a{b})", 4), 2)
         self.assertEqual(cli.find_matching_bracket("(a{b})", 5), 0)
+        self.assertEqual(cli.find_matching_bracket("((a))", 3), 1)
+        self.assertEqual(cli.find_matching_bracket("((a))", 4), 0)
+        self.assertEqual(cli.find_matching_bracket("[a]", 2), 0)
+
+    def test_find_matching_bracket_returns_negative_one_without_match(self):
+        self.assertEqual(cli.find_matching_bracket("a)", 1), -1)
+        self.assertEqual(cli.find_matching_bracket("(a)", 1), -1)
 
 class TestHandleQuery(BaseTest):
 

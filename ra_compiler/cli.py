@@ -15,6 +15,17 @@ from .translator import RATranslator
 from .executor import execute, saved_results
 from .utils import clean_exit, print_error, print_debug
 
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.layout.processors import HighlightMatchingBracketProcessor
+    from prompt_toolkit.styles import Style
+except ImportError:
+    PromptSession = None
+    FileHistory = None
+    HighlightMatchingBracketProcessor = None
+    Style = None
+
 RELATION_LIST_LABELS = [
     ("tables", "Tables"),
     ("temporary_tables", "Temporary tables"),
@@ -23,12 +34,22 @@ RELATION_LIST_LABELS = [
     ("rac_virtual_views", "RAC virtual views"),
 ]
 
-# import windows equivalent of readline
-try:
-    import readline  # Unix / macOS
-except ImportError:
-    # Windows fallback
-    import pyreadline3 as readline
+BRACKET_PAIRS = {
+    ')': '(',
+    '}': '{',
+    ']': '[',
+}
+
+prompt_session = None
+readline = None
+
+if PromptSession is None:
+    # import windows equivalent of readline
+    try:
+        import readline  # Unix / macOS
+    except ImportError:
+        # Windows fallback
+        import pyreadline3 as readline
 
 
 def main():
@@ -61,10 +82,7 @@ def rac_setup(args):
 
     # create the path to the history file if it doesn't exist yet
     os.makedirs(os.path.dirname(history_file), exist_ok=True)
-    if os.path.exists(history_file):
-        readline.read_history_file(history_file)
-    readline.set_history_length(50)
-    atexit.register(readline.write_history_file, history_file)
+    configure_prompt(history_file)
 
     if args.out:
         os.makedirs("out", exist_ok=True)
@@ -78,27 +96,83 @@ def find_matching_bracket(text, closing_index):
         return -1
 
     closing = text[closing_index]
-    opening = {')': '(', '}': '{'}.get(closing)
+    opening = BRACKET_PAIRS.get(closing)
     if opening is None:
         return -1
 
     depth = 0
     for idx in range(closing_index, -1, -1):
         char = text[idx]
-        if char == opening:
+        if char == closing:
+            depth += 1
+        elif char == opening:
+            depth -= 1
             if depth == 0:
                 return idx
-            depth -= 1
-        elif char in {'(', '{'}:
-            depth += 1
 
     return -1
+
+
+def configure_prompt(history_file):
+    """Set up the interactive query prompt."""
+
+    global prompt_session
+
+    if PromptSession is not None:
+        try:
+            prompt_session = PromptSession(
+                history=FileHistory(history_file),
+                input_processors=[
+                    HighlightMatchingBracketProcessor(chars="(){}[]"),
+                ],
+                reserve_space_for_menu=0,
+                style=Style.from_dict({
+                    "matching-bracket.cursor": "bg:#444444 #ffffff bold",
+                    "matching-bracket.other": "bg:#444444 #ffffff bold",
+                }),
+            )
+            return
+        except Exception:
+            prompt_session = None
+
+    configure_readline_history(history_file)
+
+
+def configure_readline_history(history_file):
+    """Set up basic history support for the plain input fallback."""
+
+    global readline
+
+    if readline is None:
+        try:
+            import readline as readline_module
+        except ImportError:
+            import pyreadline3 as readline_module
+
+        readline = readline_module
+
+    if os.path.exists(history_file):
+        readline.read_history_file(history_file)
+    readline.set_history_length(50)
+    atexit.register(write_readline_history, history_file)
+
+
+def write_readline_history(history_file):
+    """Persist fallback prompt history if the history path is still usable."""
+
+    history_dir = os.path.dirname(history_file)
+    if history_dir:
+        os.makedirs(history_dir, exist_ok=True)
+
+    readline.write_history_file(history_file)
 
 
 def prompt_for_query(prompt='> '):
     """Read a query line using the standard input prompt."""
 
     try:
+        if prompt_session is not None:
+            return prompt_session.prompt(prompt)
         return input(prompt)
     except EOFError:
         raise

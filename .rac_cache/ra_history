@@ -1,8 +1,5 @@
 A
 B
-A /join _{B.a = A.y} B
-A
-B
 A /join _{B.y = A.x} B
 A
 B
@@ -48,3 +45,24 @@ a
 payment
 /gamma_{count(*)->total} payment
 quit
+list
+customer
+/sigma_{cid >3} customer
+
+# 2026-06-25 11:56:02.800652
++list
+
+# 2026-06-25 11:56:08.416500
++customer
+
+# 2026-06-25 11:56:18.039947
++/sigma_{cid > 3} customer
+
+# 2026-06-25 11:56:35.352018
++list
+
+# 2026-06-25 11:56:38.215835
++payment
+
+# 2026-06-25 11:56:53.832206
++/sigma_{amount>400} payment
