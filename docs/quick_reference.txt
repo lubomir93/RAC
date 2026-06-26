@@ -6,6 +6,9 @@
 - Drop: remove a saved virtual view from the usable list of relations
   => \drop table
 
+- Clear: clear the screen
+  => clear, /clear, \clear
+
 - Projection: select specific columns or date parts with month()/year()
   => \pi {col1[, col2, ...] | month(date_col) | *} table
 

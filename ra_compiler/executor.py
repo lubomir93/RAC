@@ -557,6 +557,37 @@ def collect_relation_names(table_expr):
 
     return names
 
+def relation_display_name(table_expr, ndf=None):
+    """Return a concise user-facing name for a table expression."""
+
+    if isinstance(table_expr, str):
+        return table_expr
+
+    if isinstance(table_expr, dict):
+        alias = table_expr.get("table_alias")
+        if table_expr.get("operation") == "rename" and alias:
+            return alias
+        if alias and not str(alias).startswith("_rac_q"):
+            return alias
+
+    name = getattr(ndf, "name", None)
+    if name and not str(name).startswith("_rac_q"):
+        return name
+
+    if isinstance(table_expr, dict):
+        operation = table_expr.get("operation")
+        if operation:
+            return f"{operation} result"
+
+    return "unnamed result"
+
+def format_join_display(left_expr, right_expr, ndf1=None, ndf2=None):
+    """Return a compact display of a natural join expression."""
+
+    left_name = relation_display_name(left_expr, ndf1)
+    right_name = relation_display_name(right_expr, ndf2)
+    return f"({left_name} /join {right_name})"
+
 def build_join_context(expr, ndf1, ndf2, left_cols, right_cols):
     """Build metadata used to resolve qualified join predicates."""
 
@@ -627,6 +658,7 @@ def exec_join(expr, ndf1, ndf2):
     condition = expr.get("condition")
     attributes = expr.get("attributes")
     alias = expr.get("table_alias")
+    natural_join = attributes is None
 
     # add helper ids to the DataFrames and grab all the columns
     df1_dr = ndf1.df.reset_index().rename(columns={'index': '_left_id'})
@@ -636,7 +668,13 @@ def exec_join(expr, ndf1, ndf2):
     # if no condition, use pandas specialized merge function
     if not condition:
         merge_how = 'inner' if 'semi' in join_type else join_type
-        attributes = attributes or list(set(df1_dr.columns) & set(df2_dr.columns))
+        if natural_join:
+            attributes = list(set(df1_dr.columns) & set(df2_dr.columns))
+            natural_join_display = format_join_display(
+                expr.get("table1"), expr.get("table2"), ndf1, ndf2
+            )
+        else:
+            natural_join_display = None
 
         # if an inner or semi join, drop rows with nulls in the join attributes
         if merge_how == "inner":
@@ -644,7 +682,7 @@ def exec_join(expr, ndf1, ndf2):
             df2_dr = df2_dr.dropna(subset=attributes)
 
         result, left_cols, right_cols = merge_and_get_cols(
-            df1_dr, df2_dr, merge_how, attributes)
+            df1_dr, df2_dr, merge_how, attributes, natural_join_display)
 
         # if an outer join, handle the case where nulls match
         if merge_how != "inner":
@@ -675,8 +713,13 @@ def exec_join(expr, ndf1, ndf2):
     outer_result =  handle_outer_join(result, merge, join_type, left_cols, right_cols)
     return clean_join_result(alias, outer_result)
 
-def merge_and_get_cols(df1_dr, df2_dr, merge_how, attributes=None):
+def merge_and_get_cols(df1_dr, df2_dr, merge_how, attributes=None, natural_join_display=None):
     if attributes is not None and len(attributes) == 0:
+        if natural_join_display:
+            raise ValueError(
+                "Cannot perform a natural join between tables that have no "
+                f"attributes in common. Failed join: {natural_join_display}"
+            )
         raise ValueError("No common attributes found between tables.")
 
     if attributes is None:

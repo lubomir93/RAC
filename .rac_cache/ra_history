@@ -1,68 +1,221 @@
-A
-B
-A /join _{B.y = A.x} B
-A
-B
-A /join _{B.y = A.x} B
-quit
-A
-B
-A /join _{B.y = A.x} B
-A
-B
-A /left_{a, b} B
-A
-/sigma_{NULL=NULL} A
-exit
- /sigma_{NULL=NULL} A
-A /left_{a, b} B
-A
-B
- /sigma_{NULL=NULL} A
-quit
-list
-a
-/sigma_{NULL=NULL} a
-quit
-/list
-/sigma_{NULL=NULL} a
-quit
-list
-a
-b
-a /join b
-a /join_{a.b=b.a} b
-quit
-a /join_{a.b=b.a} b
-a
-b
-a /join_{a.a=b.a} b
-quit
-list
-a
-/sigma_{a>3} a
-/sigma_{a>0} a
-payment
-/gamma_{count(*)->total} payment
-quit
-list
-customer
-/sigma_{cid >3} customer
 
-# 2026-06-25 11:56:02.800652
+# 2026-06-25 16:44:06.362447
++quit
+
+# 2026-06-25 16:44:10.690836
 +list
 
-# 2026-06-25 11:56:08.416500
-+customer
+# 2026-06-25 16:44:12.090485
++clear
 
-# 2026-06-25 11:56:18.039947
-+/sigma_{cid > 3} customer
-
-# 2026-06-25 11:56:35.352018
+# 2026-06-25 16:44:14.938781
 +list
 
-# 2026-06-25 11:56:38.215835
-+payment
+# 2026-06-25 16:44:16.722442
++clear
 
-# 2026-06-25 11:56:53.832206
-+/sigma_{amount>400} payment
+# 2026-06-25 16:44:18.322498
++list
+
+# 2026-06-25 16:56:35.425585
++\sigma_{cid,cname; sum(amount)->amount) (/transaction /join ownership )/join customer)
+
+# 2026-06-25 16:56:45.081606
++\sigma_{cid,cname; sum(amount)->amount) ((/transaction /join ownership )/join customer)
+
+# 2026-06-25 16:57:18.025563
++\gamma_{cid,cname; sum(amount)->amount) (/transaction /join ownership )/join customer)
+
+# 2026-06-25 16:57:40.329520
++\gamma_{cid,cname; sum(amount)->amount)} ((/transaction /join ownership )/join customer)
+
+# 2026-06-25 16:57:45.745601
++\gamma_{cid,cname; sum(amount)->amount} ((/transaction /join ownership )/join customer)
+
+# 2026-06-25 16:57:58.673475
++\gamma_{cid,cname; sum(amount)->amount} ((transaction /join ownership )/join customer)
+
+# 2026-06-25 16:59:38.689509
++clear
+
+# 2026-06-25 16:59:40.385350
++\gamma_{cid,cname; sum(amount)->amount} ((transaction /join ownership )/join customer)
+
+# 2026-06-25 17:02:54.441514
++quit
+
+# 2026-06-25 17:04:14.961861
++clear
+
+# 2026-06-25 17:06:40.537838
++quit
+
+# 2026-06-25 17:06:46.833966
++list
+
+# 2026-06-25 17:06:48.649386
++clear
+
+# 2026-06-25 17:06:49.777138
++ls
+
+# 2026-06-25 17:06:53.385126
++list
+
+# 2026-06-25 17:07:07.169811
++\tau{amount desc}(\gamma_{cid,cname; max(amount)->amount} ((transaction /join ownership )/join customer))
+
+# 2026-06-25 17:08:43.833338
++\tau{total desc}(\gamma_{cid,cname; sum(amount)->total} ((transaction /join ownership )/join customer))
+
+# 2026-06-25 17:10:19.617142
++/pi_{vid,vname,ccnumber} ((vendor /join ownership)/creditcard) /divide (/pi_{ccnumber} creditcard)
+
+# 2026-06-25 17:10:31.577030
++(/pi_{vid,vname,ccnumber} ((vendor /join ownership)/creditcard)) /divide (/pi_{ccnumber} creditcard)
+
+# 2026-06-25 17:10:43.960722
++(/pi_{vid,vname,ccnumber} ((vendor /join ownership)/creditcard))
+
+# 2026-06-25 17:10:53.864681
++(/pi_{vid,vname,ccnumber} ((vendor /join ownership)/join creditcard))
+
+# 2026-06-25 17:11:35.856693
++(/pi_{vid,vname,ccnumber} ((vendor /join creditcard)))
+
+# 2026-06-25 17:12:06.280605
++(/pi_{vid,vname,ccnumber} ((vendor /join transaction) /join creditcard))
+
+# 2026-06-25 17:12:25.664618
++(/pi_{vid,vname,ccnumber} ((vendor /join transaction) /join creditcard)) /divide /pi_{ccnumber} creditcard;
+
+# 2026-06-25 17:12:43.992599
++(/pi_{vid,vname,ccnumber} ((vendor /join transaction) /join creditcard)) /divide (/pi_{ccnumber} creditcard);
+
+# 2026-06-25 17:15:05.056752
++((vendor /join transaction) /join customer)
+
+# 2026-06-25 17:15:14.912353
++((vendor /join transaction) /join payment)
+
+# 2026-06-25 17:15:25.232381
++((vendor /join creditcard) /join payment)
+
+# 2026-06-25 17:24:16.928083
++quit
+
+# 2026-06-25 17:24:25.688449
++list
+
+# 2026-06-25 17:24:33.552140
++payment /join v1
+
+# 2026-06-25 17:24:35.976004
++list
+
+# 2026-06-25 17:24:43.088076
++creditcard /join customer
+
+# 2026-06-25 17:24:59.480050
++(creditcard /join customer) /join payment
+
+# 2026-06-25 17:25:20.863600
++((\pi_{ccnumber} creditcard) /join customer) /join payment
+
+# 2026-06-25 17:27:51.839874
++\limit_{5} (\tau_{total desc} (\gamma_{vid,vname; sum(amount)->total} (transaction /join vendor)))
+
+# 2026-06-25 17:27:55.951988
++\limit_{5} (\tau_{total desc} (\gamma_{vid,vname; sum(amount)->total} (transction /join vendor)))
+
+# 2026-06-25 17:28:46.023776
++\limit_{5} (\tau_{total desc} (\gamma_{vid,vname; sum(amount)->t)
+
+# 2026-06-25 17:33:12.607180
++quit
+
+# 2026-06-25 17:33:36.039481
++(customer /join creditcard) /join payment
+
+# 2026-06-25 17:34:45.031103
++/gamma_{vid,vname,year(tdate),month(tdate); count(*) =>total} (vendor /join transaction)
+
+# 2026-06-25 17:34:53.607283
++/gamma_{vid,vname,year(tdate),month(tdate); count(*) ->total} (vendor /join transaction)
+
+# 2026-06-25 17:35:16.470868
++/sigma_{total > 10} (/gamma_{vid,vname,year(tdate),month(tdate); count(*) ->total} (vendor /join transaction))
+
+# 2026-06-25 17:35:52.686901
++/pi_{vid,vname} (/sigma_{total > 10} (/gamma_{vid,vname,year(tdate),month(tdate); count(*) ->total} (vendor /join transaction)))
+
+# 2026-06-25 17:37:50.918828
++/gamma_{cid,cname; count(*)-> total} (customer /join ownership)
+
+# 2026-06-25 17:38:08.942721
++/sigma_{total > 10} (/gamma_{cid,cname; count(*)-> total} (customer /join ownership))
+
+# 2026-06-25 17:38:34.758715
++/pi_{cid,cname}(/sigma_{total > 10} (/gamma_{cid,cname; count(*)-> total} (customer /join ownership)))
+
+# 2026-06-25 17:43:52.558303
++/gamma_{cid,cname; count(distinct month(pdate))} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:44:04.102255
++/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:44:23.990251
++/sigma_{total =12} (/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment))
+
+# 2026-06-25 17:44:46.294281
++/pi_{cid,cname} (/sigma_{total =12} (/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment)))
+
+# 2026-06-25 17:47:12.710146
++/gamma_{cid,cname, month(pdate)-> month, year(pdate)->year, count(*)->total} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:47:37.741957
++/gamma_{cid,cname, month(pdate)-> month, year(pdate)->year; count(*)->total} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:48:07.461960
++/sigma_{total>2} (/gamma_{cid,cname, month(pdate)-> month, year(pdate)->year; count(*)->total} ((customer /join ownership) /join payment))
+
+# 2026-06-25 17:48:16.486315
++/sigma_{total>1} (/gamma_{cid,cname, month(pdate)-> month, year(pdate)->year; count(*)->total} ((customer /join ownership) /join payment))
+
+# 2026-06-25 17:48:46.965989
++/pi_{cid,cname}(/sigma_{total>1} (/gamma_{cid,cname, month(pdate)-> month, year(pdate)->year; count(*)->total} ((customer /join ownership) /join payment)))
+
+# 2026-06-25 17:51:35.581737
++/pi_{cid,cname}(/sigma_{total<12} (/gamma_{cid,cname; count(distinct(month(pdate))->total} ((customer /join ownership) /join payment)))
+
+# 2026-06-25 17:51:45.973812
++/gamma_{cid,cname; count(distinct(month(pdate))->total} ((customer /join ownership) /join payment)))
+
+# 2026-06-25 17:52:04.190060
++/gamma_{cid,cname; count(distinct(month(pdate))->total} ((customer /join ownership) /join payment))}
+
+# 2026-06-25 17:52:37.909797
++/gamma_{cid,cname; count(distinct(month(pdate)))->total} ((customer /join ownership) /join payment))}
+
+# 2026-06-25 17:53:38.789532
++/gamma_{cid,cname; count(distinct month(pdate))->total} ((customer /join ownership) /join payment))}
+
+# 2026-06-25 17:54:35.589764
++(/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join owners
++hip) /join payment)))
++
+
+# 2026-06-25 17:55:13.109482
++/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:55:32.645980
++/sigma_{total < 12} /gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment)
+
+# 2026-06-25 17:55:49.301464
++/sigma_{total < 12} (/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment))
+
+# 2026-06-25 17:56:25.373417
++/pi_{cid,cname} (/sigma_{total < 12} (/gamma_{cid,cname; count(distinct month(pdate))-> total} ((customer /join ownership) /join payment)))
+
+# 2026-06-25 17:56:55.317369
++quit

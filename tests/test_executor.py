@@ -195,10 +195,25 @@ class TestJoinHelpers(unittest.TestCase):
             "attributes": ["x"],
         }
 
-        with self.assertLogs(level="WARNING") as captured:
+        with self.assertNoLogs(level="WARNING"):
             exe.exec_join(expr, left, right)
 
-        self.assertEqual(captured.output, [])
+    def test_natural_join_without_common_attributes_displays_failed_join(self):
+        left = exe.NamedDataFrame("vendor", pd.DataFrame({"vendor_id": [1]}))
+        right = exe.NamedDataFrame("creditcard", pd.DataFrame({"card_id": [1]}))
+        expr = {
+            "table_alias": "J",
+            "join_type": "inner",
+            "table1": "vendor",
+            "table2": "creditcard",
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Cannot perform a natural join between tables that have no attributes "
+            r"in common\. Failed join: \(vendor /join creditcard\)",
+        ):
+            exe.exec_join(expr, left, right)
 
 
 class TestExecutor(BaseTest):

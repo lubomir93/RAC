@@ -5,7 +5,6 @@ import os
 import argparse
 import pathlib
 import atexit
-import sys
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
@@ -76,6 +75,7 @@ def rac_setup(args):
     print("\nWelcome to RACompiler!")
     print("Type 'exit' to quit the application.")
     print("Type 'help' for a list of supported functions and syntax.")
+    print("Type 'clear' to clear the screen.")
 
     # set up for the cli history to view previous queries
     history_file = ".rac_cache/ra_history"
@@ -167,6 +167,12 @@ def write_readline_history(history_file):
     readline.write_history_file(history_file)
 
 
+def clear_screen():
+    """Clear the terminal screen using the platform shell command."""
+
+    os.system("cls" if os.name == "nt" else "clear")
+
+
 def prompt_for_query(prompt='> '):
     """Read a query line using the standard input prompt."""
 
@@ -186,7 +192,7 @@ def run(save_to_out=False, query_counter=0):
             # grab user input
             query = prompt_for_query()
 
-            # check if the command was a help/exit request
+            # check if the command was a built-in CLI request
             if check_if_help_command(query):
                 continue
 
@@ -200,9 +206,8 @@ def run(save_to_out=False, query_counter=0):
                 show_relation_listing(result)
                 continue
 
-            # otherwise, cleanly output the datafram results
-            print("Execution Result:")
-            show_dataframe(result.name, result.df)
+            # otherwise, cleanly output just the dataframe results
+            show_dataframe(None, result.df)
 
             # if specified, save the result to a csv file in the out/ folder
             if save_to_out and result.save:
@@ -219,22 +224,38 @@ def run(save_to_out=False, query_counter=0):
         print_error(f"An Error Occurred: {e}", e)
         run(query_counter+1)
 
+
+def normalize_cli_command(query):
+    """Normalize simple shell-style RAC commands."""
+
+    return query.lower().strip(" /\\,.()")
+
+
 def check_if_help_command(query):
-    """Handle any 'exit' or 'help' commands. Return true if 'help'."""
+    """Handle any built-in CLI commands. Return true if one was handled."""
 
     # if the input is an exit command, cleanly exit the application
     exit_commands = ['exit', 'e', 'quit', 'q']
-    if query.lower().strip(" /,.()") in exit_commands:
+    command = normalize_cli_command(query)
+    if command in exit_commands:
         clean_exit()
+
+    # if the input is a clear command, clear the visible screen
+    clear_commands = ['clear']
+    if command in clear_commands:
+        clear_screen()
+        return True
 
     # if the input is a help command, print out the quick reference doc
     help_commands = ['help', 'h', '-h', '-help']
-    if query.lower().strip(" /,.()") in help_commands:
+    if command in help_commands:
         file_path = 'docs/quick_reference.txt'
         with open(file_path, 'r', encoding="utf-8") as file:
             content = file.read()
             print(content)
         return True
+
+    return False
 
 def handle_query(query, query_count=0):
     """Parse, translate, and execute a single query input."""
@@ -304,14 +325,14 @@ def show_relation_listing(listing):
 
 
 def show_dataframe(df_name, df):
-    """Nicely print out a pandas DataFrame with a corresponding name."""
+    """Nicely print out a pandas DataFrame with an optional corresponding name."""
 
     # convert the columns to nullable types for consistency
     df = df.convert_dtypes()
 
     # use the rich Console to display the table
     console = Console()
-    table = Table(title=df_name)
+    table = Table(title=df_name or None)
 
     for col in df.columns:
         table.add_column(col)

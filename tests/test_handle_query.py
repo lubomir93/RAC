@@ -1,5 +1,5 @@
-# tests/test_handle_query.py
-
+import contextlib
+import io
 import unittest
 import pandas as pd
 from tests.test_base import BaseTest
@@ -17,6 +17,121 @@ class TestBracketHighlighting(unittest.TestCase):
     def test_find_matching_bracket_returns_negative_one_without_match(self):
         self.assertEqual(cli.find_matching_bracket("a)", 1), -1)
         self.assertEqual(cli.find_matching_bracket("(a)", 1), -1)
+
+
+class TestClearCommand(unittest.TestCase):
+
+    def test_clear_screen_uses_platform_clear_command(self):
+        original_system = cli.os.system
+        calls = []
+
+        try:
+            cli.os.system = lambda command: calls.append(command)
+            cli.clear_screen()
+        finally:
+            cli.os.system = original_system
+
+        self.assertEqual(calls, ["cls" if cli.os.name == "nt" else "clear"])
+
+    def test_clear_command_aliases_clear_screen(self):
+        original_clear_screen = cli.clear_screen
+        calls = []
+
+        try:
+            cli.clear_screen = lambda: calls.append("clear")
+
+            for alias in ["clear", "/clear", "\\clear"]:
+                with self.subTest(alias=alias):
+                    self.assertTrue(cli.check_if_help_command(alias))
+
+            self.assertEqual(calls, ["clear", "clear", "clear"])
+        finally:
+            cli.clear_screen = original_clear_screen
+
+    def test_clear_command_does_not_clear_prompt_history(self):
+        original_clear_screen = cli.clear_screen
+        original_prompt_session = cli.prompt_session
+        original_readline = cli.readline
+
+        class FakeHistory:
+            def __init__(self):
+                self._loaded = False
+                self._loaded_strings = ["old prompt"]
+                self._storage = ["old prompt"]
+
+        class FakePromptSession:
+            def __init__(self, history):
+                self.history = history
+
+        class FakeReadline:
+            def __init__(self):
+                self.cleared = False
+
+            def clear_history(self):
+                self.cleared = True
+
+        try:
+            history = FakeHistory()
+            fake_readline = FakeReadline()
+            cli.clear_screen = lambda: None
+            cli.prompt_session = FakePromptSession(history)
+            cli.readline = fake_readline
+
+            self.assertTrue(cli.check_if_help_command("clear"))
+
+            self.assertEqual(history._loaded_strings, ["old prompt"])
+            self.assertEqual(history._storage, ["old prompt"])
+            self.assertFalse(history._loaded)
+            self.assertFalse(fake_readline.cleared)
+        finally:
+            cli.clear_screen = original_clear_screen
+            cli.prompt_session = original_prompt_session
+            cli.readline = original_readline
+
+
+class TestRunOutput(unittest.TestCase):
+
+    def test_run_prints_only_dataframe_for_query_results(self):
+        output = io.StringIO()
+        prompts = iter(["(/pi {b} testTable)"])
+        result = type("Result", (), {
+            "name": "_rac_q1",
+            "df": pd.DataFrame({"b": [1]}),
+            "save": False,
+        })()
+
+        original_prompt_for_query = cli.prompt_for_query
+        original_handle_query = cli.handle_query
+        original_clean_exit = cli.clean_exit
+
+        def fake_prompt_for_query(prompt='> '):
+            try:
+                return next(prompts)
+            except StopIteration:
+                raise EOFError
+
+        def fake_clean_exit(exit_code=0):
+            raise SystemExit(exit_code)
+
+        try:
+            cli.prompt_for_query = fake_prompt_for_query
+            cli.handle_query = lambda query, query_count=0: result
+            cli.clean_exit = fake_clean_exit
+
+            with self.assertRaises(SystemExit):
+                with contextlib.redirect_stdout(output):
+                    cli.run()
+        finally:
+            cli.prompt_for_query = original_prompt_for_query
+            cli.handle_query = original_handle_query
+            cli.clean_exit = original_clean_exit
+
+        printed = output.getvalue()
+        self.assertNotIn("Execution Result:", printed)
+        self.assertNotIn("_rac_q1", printed)
+        self.assertIn("b", printed)
+        self.assertIn("1", printed)
+
 
 class TestHandleQuery(BaseTest):
 
