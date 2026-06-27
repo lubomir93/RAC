@@ -216,6 +216,56 @@ class TestJoinHelpers(unittest.TestCase):
             exe.exec_join(expr, left, right)
 
 
+class TestAggregationHelpers(unittest.TestCase):
+
+    def test_grouped_coalesce_replaces_null_aggregate_results(self):
+        df = pd.DataFrame({"g": ["x", "y", "y"], "v": [pd.NA, 2, 4]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": ["g"],
+            "aggr_cond": [{
+                "type": "coalesce",
+                "args": [{"aggr": "mean", "attr": ["v"], "distinct": False}, 0],
+            }],
+        }
+
+        result = exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(list(result.df.columns), ["g", "coalesce_mean_v_0"])
+        self.assertEqual(result.df.loc[0, "coalesce_mean_v_0"], 0)
+        self.assertEqual(result.df.loc[1, "coalesce_mean_v_0"], 3)
+
+    def test_ungrouped_coalesce_replaces_null_aggregate_results(self):
+        df = pd.DataFrame({"v": [pd.NA, pd.NA]})
+        expr = {
+            "table_alias": "_rac_q",
+            "attributes": [],
+            "aggr_cond": [{
+                "type": "coalesce",
+                "args": [{"aggr": "sum", "attr": ["v"], "distinct": False}, 0],
+            }],
+        }
+
+        result = exe.exec_group(expr, exe.NamedDataFrame("T", df))
+
+        self.assertEqual(result.df.loc[0, "coalesce_sum_v_0"], 0)
+
+    def test_parser_accepts_coalesce_aggregate_group_expression(self):
+        parsed = cli.parse_query(
+            r"\gamma_{cid,cname; coalesce(avg(amount),0)} "
+            r"((customer /left ownership) /left transaction)"
+        )
+        translation = cli.RATranslator(0).transform(parsed)
+
+        aggr = translation["aggr_cond"][0]
+        self.assertEqual(translation["attributes"], ["cid", "cname"])
+        self.assertEqual(translation["table"]["operation"], "join")
+        self.assertEqual(translation["table"]["join_type"], "left")
+        self.assertEqual(aggr["type"], "coalesce")
+        self.assertEqual(aggr["args"][0]["aggr"], "mean")
+        self.assertEqual(aggr["args"][1], 0)
+
+
 class TestExecutor(BaseTest):
 
     def test_count_star_counts_all_rows_even_when_all_values_are_null(self):

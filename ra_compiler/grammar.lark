@@ -162,7 +162,14 @@ _comp_term: attr
 
 
 aggr_conds: aggr_term ("," aggr_term)*
-aggr_term: aggr_func ("->" CNAME)?
+aggr_term: aggr_expr ("->" CNAME)?
+?aggr_expr: aggr_func
+          | coalesce_func
+coalesce_func: _COALESCE_OP "(" coalesce_arg ("," coalesce_arg)+ ")"
+?coalesce_arg: aggr_expr
+             | NUMBER
+             | STRING
+             | NULL_LITERAL
 aggr_func: AGGR_OP "(" DISTINCT? attr ")"
          | COUNT_OP "(" DISTINCT? attributes ")"
 
@@ -171,6 +178,7 @@ MATH_OP: "+" | "-" | "*" | "/" | "%" | "^"
 COMP_OP: ">" | "<" | ">=" | "<=" | "!=" | "==" | "="
 AGGR_OP: "sum"i | "avg"i | "min"i | "max"i | "mean"i
 COUNT_OP: "count"i
+_COALESCE_OP: "coalesce"i
 DATE_PART_FUNC: "month"i | "year"i
 AND: "and"i | "&&" | "&" 
 OR: "or"i | "||" | "|"

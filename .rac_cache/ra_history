@@ -219,3 +219,169 @@
 
 # 2026-06-25 17:56:55.317369
 +quit
+
+# 2026-06-27 12:29:44.179627
++clear
+
+# 2026-06-27 12:30:35.235089
++(((customer /left ownership) /left transaction)/left vendor)
+
+# 2026-06-27 12:30:57.427208
++\gamma_{cid,cname; count(distinct vid)} (((customer /left ownership) /left transaction)/left vendor)
+
+# 2026-06-27 12:36:05.786683
++\gamma_{cid,cname; avg(amount)} ((customer /left ownership) /left transaction)
+
+# 2026-06-27 12:36:45.370573
++\gamma_{cid,cname; coalesce(avg(amount),0)} ((customer /left ownership) /left transaction)
+
+# 2026-06-27 13:01:10.712832
++qiot
+
+# 2026-06-27 13:01:12.521656
++quit
+
+# 2026-06-27 13:03:18.537176
++\gamma_{cid,cname; coalesce(avg(amount),0)} ((customer /left ownership) /left transaction)
+
+# 2026-06-27 13:03:28.024640
++\gamma_{cid,cname; count(distinct pid) as total} ((customer /join ownership) /join payment)
++
+
+# 2026-06-27 13:03:47.033024
++\gamma_{cid,cname; count(distinct pid) -> total} ((customer /join ownership) /join payment)
+
+# 2026-06-27 13:05:41.872355
++/pi_{cid,cname} (/sigma_{creditlimit > 10000} (((customer /join ownership) /join creditcard)/join payment))
+
+# 2026-06-27 13:05:56.432359
++/rho(t1,/pi_{cid,cname} (/sigma_{creditlimit > 10000} (((customer /join ownership) /join creditcard)/join payment)))
+
+# 2026-06-27 13:07:16.800441
++ /sigma_{year(pdate)=2025)((customer /join ownership) /join payment)
+
+# 2026-06-27 13:07:23.264523
++ /sigma_{year(pdate)=2025}((customer /join ownership) /join payment)
+
+# 2026-06-27 13:07:54.960184
++/gamma_{cid,cname,count(distinct(pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:08:03.688216
++/gamma_{cid,cname;count(distinct(pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:08:22.896121
++/gamma_{cid,cname;count(distinct(pid)->total)}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:08:39.208195
++/gamma_{cid,cname;count(distinct(pid))->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:09:07.536529
++/gamma_{cid,cname; count(distinct(pid))->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:09:48.000016
++/gamma_{cid,cname; count(distinct pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))
+
+# 2026-06-27 13:10:47.320240
++/sigma{total = 0} (/gamma_{cid,cname; count(distinct pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment)))
+
+# 2026-06-27 13:11:11.127990
++/pi_{cid,cname}(/sigma{total = 0} (/gamma_{cid,cname; count(distinct pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment))))
+
+# 2026-06-27 13:11:40.247975
++/rho(t2,/pi_{cid,cname}(/sigma{total = 0} (/gamma_{cid,cname; count(distinct pid)->total}( /sigma_{year(pdate)=2025}((customer /join ownership) /join payment)))))
+
+# 2026-06-27 13:12:41.007903
++/rho(t3,/pi_{cid,cname}(/sigma{total = 0} (/gamma_{cid,cname; count(distinct tid)->total}( /sigma_{year(tdate)=2025}((customer /join ownership) /join transaction)))))
+
+# 2026-06-27 13:12:48.823833
++t1 /interesect t2
+
+# 2026-06-27 13:12:56.359871
++(t1 /interesect t2)
+
+# 2026-06-27 13:13:04.935814
++(t1 /intersect t2)
+
+# 2026-06-27 13:13:19.303846
++((t1 /intersect t2) /intersect t3)
+
+# 2026-06-27 13:22:09.855693
++(((customer /join ownership)/join transaction)/join vendor)
+
+# 2026-06-27 13:22:56.327597
++/gamma_{cid,cname,vid,vname,tdate; couunt(tid)-> trcount, sum(amount)-> total} (((customer /join ownership)/join transaction)/join vendor)
+
+# 2026-06-27 13:23:17.215187
++/gamma_{cid,cname,vid,vname,tdate; count(tid)-> trcount, sum(amount)-> total} (((customer /join ownership)/join transaction)/join vendor)
+
+# 2026-06-27 13:23:54.399052
++/sigma_{trcount > 2 and total >100}/gamma_{cid,cname,vid,vname,tdate; count(tid)-> trcount, sum(amount)-> total} (((customer /join ownership)/join transaction)/join vendor)
+
+# 2026-06-27 13:24:13.503439
++/sigma_{trcount > 2 and total >100} (/gamma_{cid,cname,vid,vname,tdate; count(tid)-> trcount, sum(amount)-> total} (((customer /join ownership)/join transaction)/join vendor))
+
+# 2026-06-27 13:51:06.845466
++/list
+
+# 2026-06-27 13:51:09.112439
++drop t1
+
+# 2026-06-27 13:51:11.847261
++/drop t1
+
+# 2026-06-27 13:51:13.933448
++/drop t2
+
+# 2026-06-27 13:51:15.214751
++/drop t3
+
+# 2026-06-27 13:51:17.565321
++/list
+
+# 2026-06-27 13:52:03.509489
++/rho(t1, /gamma_{cid,cname; avg(amount) as avgamount} (customer /join transaction))
+
+# 2026-06-27 13:52:10.813180
++/rho(t1, /gamma_{cid,cname; avg(amount) -> avgamount} (customer /join transaction))
+
+# 2026-06-27 13:52:47.100854
++(transaction /join t1)
+
+# 2026-06-27 13:52:57.709375
++clear
+
+# 2026-06-27 13:53:04.092919
++/t1
+
+# 2026-06-27 13:53:06.214220
++t1
+
+# 2026-06-27 13:53:30.276941
++\sigma_{amount > 3*avgamount) (transaction /join t1)
+
+# 2026-06-27 13:53:36.932915
++\sigma_{amount > 3*avgamount} (transaction /join t1)
+
+# 2026-06-27 13:54:41.540779
++/gamma_{cid,cname; avg(amount)->avgamount} (customer /join transaction)
+
+# 2026-06-27 13:54:45.541091
++t1
+
+# 2026-06-27 14:07:00.811961
++/gamma_{vid,vname;count(tid) as tcount, min(creditlimit) as minlimist}((vendor /join transaction)/join creditcard)
+
+# 2026-06-27 14:07:11.315842
++/gamma_{vid,vname;count(tid) -> tcount, min(creditlimit) -> minlimist}((vendor /join transaction)/join creditcard)
+
+# 2026-06-27 14:07:46.731797
++/sigma_{tcount>=5 and minlimit>5000} (/gamma_{vid,vname;count(tid) -> tcount, min(creditlimit) -> minlimist}((vendor /join transaction)/join creditcard))
+
+# 2026-06-27 14:08:32.315713
++/sigma_{tcount>=5} (/gamma_{vid,vname;count(tid) -> tcount, min(creditlimit) -> minlimist}((vendor /join transaction)/join creditcard))
+
+# 2026-06-27 14:09:02.988083
++/sigma_{tcount>=5 and minlimit >5000} (/gamma_{vid,vname;count(tid) -> tcount, min(creditlimit) -> minlimit}((vendor /join transaction)/join creditcard))
+
+# 2026-06-27 15:05:04.180162
++quit

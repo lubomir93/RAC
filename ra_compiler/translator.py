@@ -290,6 +290,12 @@ class RATranslator(Transformer):
         else:
             raise ValueError("Invalid aggregation condition format")
 
+    def coalesce_func(self, items):
+        return {
+            "type": "coalesce",
+            "args": items
+        }
+
     def aggr_func(self, items):
         if len(items) == 2:
             aggr_op, attrs = items

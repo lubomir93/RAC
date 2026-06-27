@@ -16,7 +16,7 @@
   => \sigma {condition} table
 
 - Group By: group rows by specific columns and perform an aggregation
-  => \group {cols; agggregation(col)} table
+  => \group {cols; aggregation(col) | coalesce(aggregation(col), fallback)} table
 
 - Sort: sort the rows on specific columns
   => \sort {col asc/desc, ...} table

@@ -147,6 +147,7 @@ Groups rows by one or more attributes and applies aggregate functions (e.g., `su
 (\group_by{name; sum(score)} Results)
 (\gamma{category; max(price) -> top_price} Products)
 (\gamma{category; max(price), avg(distinct price)} Products)
+(\gamma{customer_id; coalesce(avg(amount), 0) -> avg_amount} Transactions)
 ```
 
 **Explanation**:
@@ -155,6 +156,7 @@ Groups rows by one or more attributes and applies aggregate functions (e.g., `su
 - Aggregates can include `count`, `sum`, `avg`, `min`, and `max`.
     - `count(*)` can be used to count all unique grouped-by rows
     - `distinct` can be used to only include unique values per aggregate
+    - `coalesce(aggregate, fallback)` can be used to replace null aggregate results
     - `->` can be used after an aggregate to rename the resulting column
 
 ---

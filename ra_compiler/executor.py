@@ -319,32 +319,9 @@ def exec_group(expr, ndf):
 
     group_df = df.groupby(group_attrs, sort=False, dropna=False)
 
-    def count_non_distinct(group, columns):
-        if columns == ["*"]:
-            return len(group)
-        mask = ~pd.concat([group[c].isna() for c in columns], axis=1).all(axis=1)
-        return int(mask.sum())
-
-    def count_distinct(group, columns):
-        if columns == ["*"]:
-            return int(group.drop_duplicates().shape[0])
-        subset = group[columns].copy()
-        valid_rows = ~subset.isna().all(axis=1)
-        return int(subset.loc[valid_rows].drop_duplicates().shape[0])
-
     result_parts = []
-    for alias, (col, func, distinct) in aggr_funcs.items():
-        if func == "size" and col == "*":
-            values = group_df.apply(lambda group: group.shape[0] if not distinct else group.drop_duplicates().shape[0])
-        elif func == "count":
-            values = group_df.apply(lambda group: count_distinct(group, col) if distinct else count_non_distinct(group, col))
-        else:
-            agg_func = make_agg_func(func, distinct)
-            if isinstance(col, list):
-                values = group_df[col[0]].agg(agg_func)
-            else:
-                values = group_df[col].agg(agg_func)
-
+    for alias, aggr_spec in aggr_funcs.items():
+        values = evaluate_grouped_aggr_spec(group_df, aggr_spec)
         part = values.reset_index(name=alias)
         result_parts.append(part)
 
@@ -357,37 +334,114 @@ def exec_group(expr, ndf):
 
     return NamedDataFrame(expr['table_alias'], result_df.reset_index(drop=True))
 
+def count_non_distinct(group, columns):
+    if columns == ["*"]:
+        return len(group)
+    mask = ~pd.concat([group[c].isna() for c in columns], axis=1).all(axis=1)
+    return int(mask.sum())
+
+def count_distinct(group, columns):
+    if columns == ["*"]:
+        return int(group.drop_duplicates().shape[0])
+    subset = group[columns].copy()
+    valid_rows = ~subset.isna().all(axis=1)
+    return int(subset.loc[valid_rows].drop_duplicates().shape[0])
+
+def evaluate_grouped_aggr_spec(group_df, aggr_spec):
+    """Evaluate an aggregate expression for each group."""
+
+    spec_type = aggr_spec.get("type")
+
+    if spec_type == "coalesce":
+        index = group_df.size().index
+        result = pd.Series(pd.NA, index=index, dtype="object")
+        for arg in aggr_spec["args"]:
+            values = evaluate_grouped_aggr_arg(group_df, arg, index)
+            result = result.combine_first(values)
+        return result
+
+    if spec_type != "aggregate":
+        raise ValueError(f"Unsupported aggregation expression: {spec_type}")
+
+    col = aggr_spec["col"]
+    func = aggr_spec["func"]
+    distinct = aggr_spec["distinct"]
+
+    if func == "size" and col == "*":
+        return group_df.apply(
+            lambda group: group.shape[0] if not distinct else group.drop_duplicates().shape[0]
+        )
+    if func == "count":
+        return group_df.apply(
+            lambda group: count_distinct(group, col) if distinct else count_non_distinct(group, col)
+        )
+
+    agg_func = make_agg_func(func, distinct)
+    if isinstance(col, list):
+        return group_df[col[0]].agg(agg_func)
+    return group_df[col].agg(agg_func)
+
+def evaluate_grouped_aggr_arg(group_df, arg, index):
+    """Evaluate a coalesce argument as a grouped Series."""
+
+    if is_aggr_spec(arg):
+        return evaluate_grouped_aggr_spec(group_df, arg)
+
+    return pd.Series([arg] * len(index), index=index)
+
 def exec_agg_without_group(orig_df, aggr_funcs):
     result_df = pd.DataFrame()
-    for alias, (col, func, distinct) in aggr_funcs.items():
-        if distinct and col != "*":
-            df = orig_df.drop_duplicates(subset=col)
-        elif distinct:
-            df = orig_df.drop_duplicates()
-        else:
-            df = orig_df
-
-        if func == "size" and col == "*":
-            result = len(df)
-        elif func == "count":
-            if col == ["*"] and distinct:
-                result = len(df)
-            else:
-                mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
-                result = mask.sum()
-        elif func == "sum":
-            result = df[col].sum() if df[col].notna().any() else pd.NA
-        elif func == "mean":
-            result = df[col].mean() if df[col].notna().any() else pd.NA
-        elif func == "min":
-            result = df[col].min() if df[col].notna().any() else pd.NA
-        elif func == "max":
-            result = df[col].max() if df[col].notna().any() else pd.NA
-        else:
-            raise ValueError(f"Unsupported aggregation function: {func}")
-
-        result_df[alias] = [result]
+    for alias, aggr_spec in aggr_funcs.items():
+        result_df[alias] = [evaluate_ungrouped_aggr_spec(orig_df, aggr_spec)]
     return result_df
+
+def evaluate_ungrouped_aggr_spec(orig_df, aggr_spec):
+    """Evaluate an aggregate expression across the whole DataFrame."""
+
+    spec_type = aggr_spec.get("type")
+
+    if spec_type == "coalesce":
+        for arg in aggr_spec["args"]:
+            result = (
+                evaluate_ungrouped_aggr_spec(orig_df, arg)
+                if is_aggr_spec(arg)
+                else arg
+            )
+            if not pd.isna(result):
+                return result
+        return pd.NA
+
+    if spec_type != "aggregate":
+        raise ValueError(f"Unsupported aggregation expression: {spec_type}")
+
+    col = aggr_spec["col"]
+    func = aggr_spec["func"]
+    distinct = aggr_spec["distinct"]
+
+    if distinct and col != "*":
+        df = orig_df.drop_duplicates(subset=col)
+    elif distinct:
+        df = orig_df.drop_duplicates()
+    else:
+        df = orig_df
+
+    if func == "size" and col == "*":
+        return len(df)
+    if func == "count":
+        if col == ["*"] and distinct:
+            return len(df)
+        mask = ~pd.concat([df[c].isna() for c in col], axis=1).all(axis=1)
+        return mask.sum()
+    if func == "sum":
+        return df[col].sum() if df[col].notna().any() else pd.NA
+    if func == "mean":
+        return df[col].mean() if df[col].notna().any() else pd.NA
+    if func == "min":
+        return df[col].min() if df[col].notna().any() else pd.NA
+    if func == "max":
+        return df[col].max() if df[col].notna().any() else pd.NA
+
+    raise ValueError(f"Unsupported aggregation function: {func}")
 
 def make_agg_func(func, distinct=False):
     """Return a pandas aggregation function for the given operation and distinct flag."""
@@ -1134,7 +1188,7 @@ def process_attributes(df, attributes_expr):
     return processed_attrs
 
 def parse_aggr_conds(aggr_conds, df):
-    """Convert aggr_cond expressions into a dict of output_column -> (col, agg_func)"""
+    """Convert aggr_cond expressions into output aliases and aggregate specs."""
 
     aggr_funcs = {}
     for aggr in aggr_conds:
@@ -1145,21 +1199,99 @@ def parse_aggr_conds(aggr_conds, df):
         else:
             alias = None
 
-        op = aggr["aggr"].lower()
-        attr = aggr.get("attr", ["*"])
-        attrs = process_attributes(df, attr)
-        distinct = aggr.get("distinct", False)
-        distinct_alias = "_^d" if distinct else ""
-
-        # Special handling for count(*)
-        if op == "count" and attr == ["*"]:
-            alias = alias if alias else f"count_star{distinct_alias}"
-            aggr_funcs[alias] = ("*", "size", distinct)
-        elif op == "count":
-            alias = alias if alias else f"count_{'_'.join(attrs)}{distinct_alias}"
-            aggr_funcs[alias] = (attrs, op, distinct)
-        else:
-            alias = alias if alias else f"{op}_{'_'.join(attrs)}{distinct_alias}"
-            aggr_funcs[alias] = (attrs[0], op, distinct)
+        aggr_spec = build_aggr_spec(aggr, df)
+        alias = alias if alias else aggr_spec_alias(aggr_spec)
+        aggr_funcs[alias] = aggr_spec
 
     return aggr_funcs
+
+def build_aggr_spec(aggr, df):
+    """Build an executable spec for an aggregate expression."""
+
+    if isinstance(aggr, dict) and aggr.get("type") == "coalesce":
+        return {
+            "type": "coalesce",
+            "args": [build_coalesce_arg(arg, df) for arg in aggr["args"]],
+        }
+
+    op = aggr["aggr"].lower()
+    attr = aggr.get("attr", ["*"])
+    attrs = process_attributes(df, attr)
+    distinct = aggr.get("distinct", False)
+    distinct_alias = "_^d" if distinct else ""
+
+    # Special handling for count(*)
+    if op == "count" and attr == ["*"]:
+        label = f"count_star{distinct_alias}"
+        return {
+            "type": "aggregate",
+            "col": "*",
+            "func": "size",
+            "distinct": distinct,
+            "label": label,
+        }
+    if op == "count":
+        label = f"count_{'_'.join(attrs)}{distinct_alias}"
+        return {
+            "type": "aggregate",
+            "col": attrs,
+            "func": op,
+            "distinct": distinct,
+            "label": label,
+        }
+
+    label = f"{op}_{'_'.join(attrs)}{distinct_alias}"
+    return {
+        "type": "aggregate",
+        "col": attrs[0],
+        "func": op,
+        "distinct": distinct,
+        "label": label,
+    }
+
+def build_coalesce_arg(arg, df):
+    """Build a coalesce argument from either an aggregate expression or literal."""
+
+    if isinstance(arg, dict):
+        return build_aggr_spec(arg, df)
+    return literal_value(arg)
+
+def aggr_spec_alias(aggr_spec):
+    """Return the default output alias for an aggregate expression."""
+
+    if aggr_spec["type"] == "aggregate":
+        return aggr_spec["label"]
+
+    if aggr_spec["type"] == "coalesce":
+        labels = [aggr_arg_alias(arg) for arg in aggr_spec["args"]]
+        return f"coalesce_{'_'.join(labels)}"
+
+    raise ValueError(f"Unsupported aggregation expression: {aggr_spec['type']}")
+
+def aggr_arg_alias(arg):
+    """Return the alias fragment for a coalesce argument."""
+
+    if is_aggr_spec(arg):
+        return aggr_spec_alias(arg)
+
+    if arg is None:
+        return "null"
+
+    label = str(arg).strip("\"'")
+    label = "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in label)
+    return label.strip("_") or "value"
+
+def is_aggr_spec(value):
+    return isinstance(value, dict) and value.get("type") in {"aggregate", "coalesce"}
+
+def literal_value(value):
+    """Return a plain Python literal from a parsed literal token."""
+
+    if isinstance(value, str):
+        text = str(value)
+        if (
+            (text.startswith('"') and text.endswith('"'))
+            or (text.startswith("'") and text.endswith("'"))
+        ):
+            return text[1:-1]
+    return value
